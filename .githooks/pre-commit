@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(c|cc|cpp|cxx|h|hh|hpp|hxx)$' || true)
+
+if [[ -n "${files}" ]]; then
+  if ! command -v clang-format >/dev/null 2>&1; then 
+    echo "pre-commit: clang-format not found (skipping formatting)"
+  else
+    echo "pre-commit: running clang-format on staged files"
+    clang-format -i ${files}
+
+    git add ${files}
+  fi 
+fi
+
+exit 0

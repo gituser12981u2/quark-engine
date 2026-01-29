@@ -1,0 +1,68 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            configure_preset: macos-arm64-debug 
+
+          - os: ubuntu-latest
+            configure_preset: linux-x64-gcc-debug 
+
+          - os: ubuntu-latest
+            configure_preset: linux-x64-clang-debug 
+            do_format: true
+            do_tidy: true
+
+          - os: windows-latest
+            configure_preset: windows-x64-msvc-debug 
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build cmake g++ clang
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew update
+          brew install ninja cmake
+
+      - name: Set up MSVC dev cmd (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install dependencies (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install -y ninja cmake
+
+      - name: Bootstrap vcpkg (macOS/Linux)
+        if: runner.os != 'Windows'
+        run: make deps 
+
+      - name: Bootstrap vcpkg (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          git submodule update --init --recursive
+          if (!(Test-Path "vcpkg\vcpkg.exe")) { cd vcpkg; .\bootstrap-vcpkg.bat; cd .. }
+
+      - name: Configure
+        run: cmake --preset ${{ matrix.configure_preset }}
+
+      - name: Build
+        run: cmake --build --preset ${{ matrix.configure_preset }}

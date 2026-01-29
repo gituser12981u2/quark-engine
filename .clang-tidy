@@ -1,0 +1,95 @@
+Checks: >
+  clang-diagnostic-*,
+  clang-analyzer-*,
+  performance-*,
+  concurrency-*,
+  portability-*,
+  cert-*,
+
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+
+  misc-*,
+  -misc-non-private-member-variables-in-classes,
+  -misc-use-anonymous-namespace,
+
+  readability-*,
+  -readability-identifier-length,
+  -readability-magic-numbers,
+
+  # cppcoreguidelines-*,
+  # -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+  # -cppcoreguidelines-avoid-magic-numbers,
+  cppcoreguidelines-narrowing-conversions,
+  cppcoreguidelines-slicing,
+  cppcoreguidelines-special-member-functions,
+  cppcoreguidelines-explicit-virtual-functions,
+  cppcoreguidelines-performance-unnecessary-value-param,
+  cppcoreguidelines-performance-for-range-copy,
+  cppcoreguidelines-performance-move-const-arg,
+  cppcoreguidelines-rvalue-reference-param-not-moved,
+  cppcoreguidelines-interfaces-global-init,
+  cppcoreguidelines-prefer-member-initializer,
+  cppcoreguidelines-init-variable,
+  cppcoreguidelines-pro-type-*,
+
+  modernize-*,
+  -modernize-use-auto,
+  -modernize-use-trailing-return-type,
+
+WarningsAsErrors: ""
+HeaderFilterRegex: ".*"
+FormatStyle: file
+
+CheckOptions:
+  - key: performance-move-const-arg.CheckTriviallyCopyableMove
+    value: false
+  - key: performance-unnecessary-value-param.AllowedTypes
+    value: "std::string_view;std::span"
+  - key: cppcoreguidelines-rvalue-reference-param-not-moved.AllowPartialMove
+    value: true
+  - key: cppcoreguidelines-rvalue-reference-param-not-moved.IgnoreUnnamedParams
+    value: true
+
+  - key: modernize-use-auto.MinTypeNameLength
+    value: 5
+  - key: modernize-use-nullptr.NullMacros
+    value: "NULL"
+  - key: modernize-loop-convert.MinConfidence
+    value: reasonable
+  - key: modernize-pass-by-value.IncludeStyle
+    value: llvm
+  - key: modernize-use-emplace.ContainersWithPushBack
+    value: "::std::vector;::std::list;::std::deque"
+  - key: modernize-use-emplace.SmartPointers
+    value: "::std::shared_ptr;::std::unique_ptr"
+
+  - key: performance-for-range-copy.WarnOnAllAutoCopies
+    value: true
+  - key: performance-inefficient-string-concatenation.StrictMode
+    value: true
+  - key: performance-unnecessary-copy-initialization.AllowedTypes
+    value: "std::string_view;std::span"
+
+  - key: bugprone-use-after-move.CheckMove
+    value: true
+  - key: bugprone-dangling-handle.HandleClasses
+    value: "std::string_view;std::span;std::experimental::string_view"
+
+  - key: readability-function-cognitive-complexity.Threshold
+    value: 30
+  - key: readability-function-size.LineThreshold
+    value: 150
+  - key: readability-simplify-boolean-expr.ChainedConditionalReturn
+    value: true
+  - key: readability-simplify-boolean-expr.ChainedConditionalAssignment
+    value: true
+  - key: readability-qualified-auto.AddConstToQualified
+    value: true
+
+  - key: misc-non-private-member-variables-in-classes.IgnoreClassesWithAllMemberVariablesBeingPublic
+    value: true
+  - key: misc-const-correctness.WarnPointersAsValues
+    value: true
+  - key: misc-const-correctness.TransformPointersAsValues
+    value: true

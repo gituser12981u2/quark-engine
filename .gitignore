@@ -1,0 +1,12 @@
+# workspace
+build/
+compile_commands.json
+
+# macOS
+.DS_Store
+
+# vcpkg
+vcpkg/buildtrees/
+vcpkg/downloads/
+vcpkg/packages/
+vcpkg/installed/
