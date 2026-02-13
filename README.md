@@ -2,10 +2,11 @@
 
 ## Work in Progress Game Engine for Quake-Style Game
 
-This engine shall be written in Vulkan, targeting macOS, Windows, and Linux. This only supports devices 
+This engine shall be written in Vulkan, targeting macOS, Windows, and Linux. This only supports devices
 with Vulkan 1.3+, for dynamic rendering mainly.
 
-The engine shall have 
+The engine shall have
+
 - Custom Physics Engine
 - PBR
 - Animations
@@ -13,7 +14,8 @@ The engine shall have
 - GUI Editor
 
 Advanced possible supports
-- Virtualized Geometry 
+
+- Virtualized Geometry
 - Global Illumination
 
 The game that shall be made with this engine is a game with movement inspired by quake.
@@ -22,21 +24,29 @@ multiplayer, and a COD zombies inspired mode.
 
 The focus of this game engine is to make a game playable on all devices with little hassle from the game developer.
 
+```bash
+make configure
+make build
+make run
+```
+
+Preset selection is automatic by OS/arch via the `Makefile`.
+
 ## MVP 1
 
 - [ ] Logger (spdlog)
 - [ ] Dynamic Rendering
 - [ ] Arbitrary 3d Meshes (Indices and Vertices)
 - [ ] Moveable Camera (UBO)
-- [ ] Profiler (custom and tracy) 
+- [ ] Profiler (custom and tracy)
 - [ ] ImGUI (profiler output, debug views, options, placing objects with gizmos)
-- [ ] Depth pre-pass 
+- [ ] Depth pre-pass
 - [ ] Textures
-- [ ] Material SSBO 
+- [ ] Material SSBO
 - [ ] Lighting (lambert/burley and cook-torrance GGX BRDF for metallic roughness)
 - [ ] gITF imports
-    - [ ] mesh import
-    - [ ] PBR
+  - [ ] mesh import
+  - [ ] PBR
 - [ ] IBL
 - [ ] Forward+ lighting
 - [ ] Mipmaps
@@ -45,17 +55,18 @@ The focus of this game engine is to make a game playable on all devices with lit
 - [ ] Rendergraph
 
 ## MVP 2
+
 - [ ] RmGUI Editor
 - [ ] Job System
-    - [ ] Basic Multithreading for uploader
-    - [ ] Dynamic picking of threads for jobs
+  - [ ] Basic Multithreading for uploader
+  - [ ] Dynamic picking of threads for jobs
 - [ ] ECS
 - [ ] Basic physics engine
 - [ ] Player Controller
 
-## MVP 3 
+## MVP 3
+
 - [ ] Occlusion culling (gpu)
 - [ ] Deferred rendering
 - [ ] Streaming
-- [ ] GPU indirect passes 
-
+- [ ] GPU indirect passes

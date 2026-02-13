@@ -26,8 +26,10 @@ endif
 ifeq ($(UNAME_S),Darwin)
   ifeq ($(UNAME_M),arm64)
     CMAKE_CONFIGURE_PRESET := macos-arm64-$(SUFFIX)
+  else ifeq ($(UNAME_M),x86_64)
+    CMAKE_CONFIGURE_PRESET := macos-x64-$(SUFFIX)
   else
-    $(error Unsupported macOS arch '$(UNAME_M)'. Add macos-x64-* presets if needed.)
+    $(error Unsupported macOS arch '$(UNAME_M)')
   endif
   BUILD_DIR := build/$(CMAKE_CONFIGURE_PRESET)
 
@@ -55,9 +57,16 @@ else
     CMAKE_CONFIGURE_PRESET := windows-x64-msvc-$(SUFFIX)
     BUILD_DIR := build/$(CMAKE_CONFIGURE_PRESET)
   endif
+
+  ifeq ($(SUFFIX),asan-ubsan)
+    $(error CONFIG=asan-ubsan is not supported for windows-x64-msvc presets)
+  endif
+  ifeq ($(SUFFIX),tsan)
+    $(error CONFIG=tsan is not supported for windows-x64-msvc presets)
+  endif
 endif
 
-.PHONY: deps configure build run clean 
+.PHONY: deps configure build run clean
 
 deps:
 	git submodule update --init --recursive
@@ -82,13 +91,13 @@ deps:
 
 
 configure:
-	cmake --preset $(CMAKE_CONFIGURE_PRESET) 
-	./scripts/sync_compile_commands.sh $(BUILD_DIR) 
+	cmake --preset $(CMAKE_CONFIGURE_PRESET)
+	./scripts/sync_compile_commands.sh $(BUILD_DIR)
 
 build: configure
-	cmake --build $(BUILD_DIR) 
+	cmake --build $(BUILD_DIR)
 
-run: build 
+run: build
 	cmake --build $(BUILD_DIR) --target run
 
 clean:

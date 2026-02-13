@@ -1,7 +1,7 @@
 # workspace
 build/
 compile_commands.json
-
+.cache
 # macOS
 .DS_Store
 
