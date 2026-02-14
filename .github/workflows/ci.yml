@@ -11,18 +11,21 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            configure_preset: macos-arm64-debug 
+            configure_preset: macos-arm64-debug
+
+          - os: macos-latest
+            configure_preset: macos-x64-debug
 
           - os: ubuntu-latest
-            configure_preset: linux-x64-gcc-debug 
+            configure_preset: linux-x64-gcc-debug
 
           - os: ubuntu-latest
-            configure_preset: linux-x64-clang-debug 
+            configure_preset: linux-x64-clang-debug
             do_format: true
             do_tidy: true
 
           - os: windows-latest
-            configure_preset: windows-x64-msvc-debug 
+            configure_preset: windows-x64-msvc-debug
 
     runs-on: ${{ matrix.os }}
 
@@ -33,7 +36,16 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build cmake g++ clang
+          sudo apt-get install -y \
+            ninja-build \
+            cmake \
+            g++ \
+            clang \
+            libxinerama-dev \
+            libxcursor-dev \
+            xorg-dev \
+            libglu1-mesa-dev \
+            pkg-config
 
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
@@ -52,7 +64,7 @@ jobs:
 
       - name: Bootstrap vcpkg (macOS/Linux)
         if: runner.os != 'Windows'
-        run: make deps 
+        run: make deps
 
       - name: Bootstrap vcpkg (Windows)
         if: runner.os == 'Windows'

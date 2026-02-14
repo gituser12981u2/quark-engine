@@ -68,9 +68,44 @@ endif
 
 .PHONY: deps configure build run clean
 
+###  testing this for non-gh actions
 deps:
-	git submodule update --init --recursive
-	@if [ -f "vcpkg/bootstrap-vcpkg.sh" ]; then \
+	@set -e; \
+	if ! command -v ninja >/dev/null 2>&1; then \
+		echo "ninja not found; attempting to install..."; \
+		if command -v apt-get >/dev/null 2>&1; then \
+			if command -v sudo >/dev/null 2>&1; then SUDO=sudo; else SUDO=; fi; \
+			$$SUDO apt-get update; \
+			$$SUDO apt-get install -y ninja-build; \
+		elif command -v dnf >/dev/null 2>&1; then \
+			if command -v sudo >/dev/null 2>&1; then SUDO=sudo; else SUDO=; fi; \
+			$$SUDO dnf install -y ninja-build; \
+		elif command -v pacman >/dev/null 2>&1; then \
+			if command -v sudo >/dev/null 2>&1; then SUDO=sudo; else SUDO=; fi; \
+			$$SUDO pacman -S --noconfirm ninja; \
+		elif command -v zypper >/dev/null 2>&1; then \
+			if command -v sudo >/dev/null 2>&1; then SUDO=sudo; else SUDO=; fi; \
+			$$SUDO zypper --non-interactive install ninja; \
+		elif command -v brew >/dev/null 2>&1; then \
+			brew install ninja; \
+		elif command -v winget >/dev/null 2>&1 || command -v winget.exe >/dev/null 2>&1; then \
+			if command -v winget >/dev/null 2>&1; then WINGET=winget; else WINGET=winget.exe; fi; \
+			$$WINGET install --id Ninja-build.Ninja --exact --accept-package-agreements --accept-source-agreements; \
+		else \
+			echo "error: ninja is missing and no supported package manager was found"; \
+			exit 1; \
+		fi; \
+	else \
+		echo "ninja already installed"; \
+	fi; \
+	if [ ! -f "vcpkg/bootstrap-vcpkg.sh" ] && [ ! -f "vcpkg/bootstrap-vcpkg.bat" ]; then \
+		echo "vcpkg checkout not found; cloning..."; \
+		rm -rf vcpkg; \
+		git clone https://github.com/microsoft/vcpkg.git vcpkg; \
+	else \
+		git submodule update --init --recursive; \
+	fi; \
+	if [ -f "vcpkg/bootstrap-vcpkg.sh" ]; then \
 		if [ ! -f "vcpkg/vcpkg" ]; then \
 			echo "Bootstrapping vcpkg (Unix)..."; \
 			cd vcpkg && ./bootstrap-vcpkg.sh; \

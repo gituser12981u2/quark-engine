@@ -3,8 +3,14 @@ add_executable(quark
   vulkan/VulkanContext.cpp
 )
 
-find_package(Vulkan REQUIRED)
+find_package(Vulkan QUIET)
 find_package(glfw3 CONFIG QUIET)
+
+if(NOT Vulkan_FOUND)
+  message(FATAL_ERROR
+    "Vulkan SDK/loader was not found. If you use vcpkg, ensure the vcpkg submodule is initialised and bootstrapped (make deps) and that dependencies from vcpkg.json are installed for the active triplet."
+  )
+endif()
 
 if(NOT glfw3_FOUND)
   find_package(glfw3 REQUIRED)

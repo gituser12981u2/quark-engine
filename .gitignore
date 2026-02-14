@@ -6,7 +6,4 @@ compile_commands.json
 .DS_Store
 
 # vcpkg
-vcpkg/buildtrees/
-vcpkg/downloads/
-vcpkg/packages/
-vcpkg/installed/
+vcpkg/*

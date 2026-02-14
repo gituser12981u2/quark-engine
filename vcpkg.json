@@ -1,0 +1,21 @@
+{
+    "name": "quark-engine",
+    "version-string": "0.1.0",
+    "dependencies": [
+        "glfw3",
+        "vulkan-headers",
+        {
+            "name": "vulkan-loader",
+            "platform": "linux",
+            "features": [
+                "wayland",
+                "xcb",
+                "xlib"
+            ]
+        },
+        {
+            "name": "vulkan-loader",
+            "platform": "!linux"
+        }
+    ]
+}
