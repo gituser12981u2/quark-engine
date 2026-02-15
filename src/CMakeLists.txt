@@ -1,49 +1,36 @@
-add_executable(quark
-  main.cpp
-  vulkan/VulkanContext.cpp
+add_library(quark_headers INTERFACE)
+add_library(quark::headers ALIAS quark_headers)
+
+target_include_directories(quark_headers INTERFACE
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
 )
 
-find_package(Vulkan QUIET)
-find_package(glfw3 CONFIG QUIET)
+target_compile_features(quark_headers INTERFACE cxx_std_23)
 
-if(NOT Vulkan_FOUND)
-  message(FATAL_ERROR
-    "Vulkan SDK/loader was not found. If you use vcpkg, ensure the vcpkg submodule is initialised and bootstrapped (make deps) and that dependencies from vcpkg.json are installed for the active triplet."
-  )
-endif()
+add_subdirectory(backend)
+add_subdirectory(platform)
 
-if(NOT glfw3_FOUND)
-  find_package(glfw3 REQUIRED)
-endif()
-
-set_target_properties(quark PROPERTIES
+add_executable(quark_app main.cpp)
+set_target_properties(quark_app PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 
-target_compile_options(quark PRIVATE
+target_link_libraries(quark_app PRIVATE 
+    quark::backend
+    quark::platform
+)
+
+target_compile_options(quark_app PRIVATE
   $<$<CXX_COMPILER_ID:MSVC>:/W4 /permissive->
   $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic -Wshadow -pedantic-errors>
 )
 
-target_include_directories(quark PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
-
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
 add_custom_target(run
-  COMMAND $<TARGET_FILE:quark>
-  DEPENDS quark
-  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+  COMMAND $<TARGET_FILE:quark_app>
+  DEPENDS quark_app
+  WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
 )
 
-quark_apply_sanitizers(quark)
-quark_apply_lto(quark)
-
-target_link_libraries(quark PRIVATE Vulkan::Vulkan)
-
-if(TARGET glfw)
-  target_link_libraries(quark PRIVATE glfw)
-elseif(TARGET glfw::glfw)
-  target_link_libraries(quark PRIVATE glfw::glfw)
-else()
-  message(FATAL_ERROR "GLFW target was not found")
-endif()
+quark_apply_sanitizers(quark_app)
+quark_apply_lto(quark_app)

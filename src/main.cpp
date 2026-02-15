@@ -1,9 +1,11 @@
-#include "vulkan/VulkanContext.hpp"
+#include "backend/vulkan/vulkan_context.hpp"
+
 #include <exception>
 #include <iostream>
+
 int main() {
   try {
-    quark::VulkanContext context;
+    quark::vk::VulkanContext context;
     std::cout << "Vulkan initialised successfully.\n";
     context.run();
     return 0;

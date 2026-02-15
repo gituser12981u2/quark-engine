@@ -66,7 +66,23 @@ else
   endif
 endif
 
-.PHONY: deps configure build run clean
+# Derive the vcpkg triplet from platform to match CMakePresets.json
+ifeq ($(UNAME_S),Darwin)
+  ifeq ($(UNAME_M),arm64)
+    VCPKG_TRIPLET := arm64-osx
+  else ifeq ($(UNAME_M),x86_64)
+    VCPKG_TRIPLET := x64-osx
+  else
+    $(error Unsupported macOS arch '$(UNAME_M)')
+  endif
+else ifeq ($(UNAME_S),Linux)
+  VCPKG_TRIPLET := x64-linux
+else
+  # Windows/MSYS/Git Bash/Cygwin (probably)
+  VCPKG_TRIPLET := x64-windows
+endif
+
+.PHONY: deps vcpkg-install configure build run clean
 
 ###  testing this for non-gh actions
 deps:
@@ -124,6 +140,8 @@ deps:
 		exit 1; \
 	fi
 
+vcpkg-install: deps
+	./vcpkg/vcpkg install --triplet $(VCPKG_TRIPLET)
 
 configure:
 	cmake --preset $(CMAKE_CONFIGURE_PRESET)

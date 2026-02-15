@@ -1,20 +1,17 @@
-#ifndef QUARK_VULKAN_CONTEXT_HPP
-#define QUARK_VULKAN_CONTEXT_HPP
-
-// NOLINTBEGIN(misc-include-cleaner)
+#pragma once
 
 #include <array>
 #include <cstdint>
+#include <memory>
+#include <quark/platform/window/IWindow.hpp>
+#include <quark/vk/instance/instance_bundle.hpp>
 #include <vector>
-
 #include <vulkan/vulkan.h>
 
 using std::array;
 using std::vector;
 
-struct GLFWwindow;
-
-namespace quark {
+namespace quark::vk {
 
 class VulkanContext final {
 public:
@@ -31,7 +28,6 @@ public:
 private:
   void create_window();
   void create_instance();
-  void create_debug_messenger();
   void create_surface();
   void pick_device();
   void create_logical_device();
@@ -46,9 +42,9 @@ private:
   void cleanup_swapchain();
   void recreate_swapchain();
 
-  GLFWwindow *window_{nullptr};
-  VkInstance instance_{VK_NULL_HANDLE};
-  VkDebugUtilsMessengerEXT debug_messenger_{VK_NULL_HANDLE};
+  std::unique_ptr<platform::IWindow> window_;
+  InstanceBundle instance_;
+
   VkSurfaceKHR surface_{VK_NULL_HANDLE};
   VkPhysicalDevice physical_device_{VK_NULL_HANDLE};
   VkDevice device_{VK_NULL_HANDLE};
@@ -73,12 +69,7 @@ private:
 
   uint32_t present_queue_family_index_{0};
   uint32_t graphics_queue_family_index_{0};
-  bool glfw_initialised_{false};
   bool enable_debug_messenger_{false};
 };
 
-} // namespace quark
-
-#endif // QUARK_VULKAN_CONTEXT_HPP
-
-// NOLINTEND(misc-include-cleaner)
+} // namespace quark::vk

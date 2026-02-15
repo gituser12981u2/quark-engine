@@ -8,12 +8,14 @@
       "cacheVariables": {
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
         "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_FEATURE_FLAGS": "manifests",
         "QUARK_ENABLE_ASAN": "OFF",
         "QUARK_ENABLE_UBSAN": "OFF",
         "QUARK_ENABLE_TSAN": "OFF",
         "QUARK_ENABLE_LTO": "OFF"
       }
     },
+
     {
       "name": "macos-arm64",
       "hidden": true,
@@ -65,13 +67,12 @@
         "VCPKG_HOST_TRIPLET": "x64-windows"
       }
     },
+
     {
       "name": "macos-arm64-debug",
       "inherits": "macos-arm64",
       "binaryDir": "${sourceDir}/build/macos-arm64-debug",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug"
-      }
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
     },
     {
       "name": "macos-x64-debug",
@@ -95,9 +96,7 @@
       "name": "macos-arm64-release",
       "inherits": "macos-arm64",
       "binaryDir": "${sourceDir}/build/macos-arm64-release",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release"
-      }
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
     },
     {
       "name": "macos-arm64-release-lto",
@@ -108,13 +107,12 @@
         "QUARK_ENABLE_LTO": "ON"
       }
     },
+
     {
       "name": "linux-x64-gcc-debug",
       "inherits": "linux-x64-gcc",
       "binaryDir": "${sourceDir}/build/linux-x64-gcc-debug",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug"
-      }
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
     },
     {
       "name": "linux-x64-gcc-asan-ubsan",
@@ -139,9 +137,7 @@
       "name": "linux-x64-gcc-release",
       "inherits": "linux-x64-gcc",
       "binaryDir": "${sourceDir}/build/linux-x64-gcc-release",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release"
-      }
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
     },
     {
       "name": "linux-x64-gcc-release-lto",
@@ -152,13 +148,12 @@
         "QUARK_ENABLE_LTO": "ON"
       }
     },
+
     {
       "name": "linux-x64-clang-debug",
       "inherits": "linux-x64-clang",
       "binaryDir": "${sourceDir}/build/linux-x64-clang-debug",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug"
-      }
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
     },
     {
       "name": "linux-x64-clang-asan-ubsan",
@@ -183,9 +178,7 @@
       "name": "linux-x64-clang-release",
       "inherits": "linux-x64-clang",
       "binaryDir": "${sourceDir}/build/linux-x64-clang-release",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release"
-      }
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
     },
     {
       "name": "linux-x64-clang-release-lto",
@@ -196,21 +189,18 @@
         "QUARK_ENABLE_LTO": "ON"
       }
     },
+
     {
       "name": "windows-x64-msvc-debug",
       "inherits": "windows-x64-msvc",
       "binaryDir": "${sourceDir}/build/windows-x64-msvc-debug",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug"
-      }
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
     },
     {
       "name": "windows-x64-msvc-release",
       "inherits": "windows-x64-msvc",
       "binaryDir": "${sourceDir}/build/windows-x64-msvc-release",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release"
-      }
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
     },
     {
       "name": "windows-x64-msvc-release-lto",
@@ -222,14 +212,11 @@
       }
     }
   ],
+
   "buildPresets": [
     {
       "name": "macos-arm64-debug",
       "configurePreset": "macos-arm64-debug"
-    },
-    {
-      "name": "macos-x64-debug",
-      "configurePreset": "macos-x64-debug"
     },
     {
       "name": "macos-arm64-asan-ubsan",
@@ -243,6 +230,12 @@
       "name": "macos-arm64-release-lto",
       "configurePreset": "macos-arm64-release-lto"
     },
+
+    {
+      "name": "macos-x64-debug",
+      "configurePreset": "macos-x64-debug"
+    },
+
     {
       "name": "linux-x64-gcc-debug",
       "configurePreset": "linux-x64-gcc-debug"
@@ -263,6 +256,7 @@
       "name": "linux-x64-gcc-release-lto",
       "configurePreset": "linux-x64-gcc-release-lto"
     },
+
     {
       "name": "linux-x64-clang-debug",
       "configurePreset": "linux-x64-clang-debug"
@@ -283,6 +277,7 @@
       "name": "linux-x64-clang-release-lto",
       "configurePreset": "linux-x64-clang-release-lto"
     },
+
     {
       "name": "windows-x64-msvc-debug",
       "configurePreset": "windows-x64-msvc-debug"

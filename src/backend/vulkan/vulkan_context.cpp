@@ -1,23 +1,22 @@
-#include "VulkanContext.hpp"
-
-// NOLINTBEGIN(misc-include-cleaner)
+#include "vulkan_context.hpp"
 
 #include <algorithm>
 #include <array>
-#include <bit>
 #include <cstdint>
 #include <cstring>
 #include <format>
 #include <iostream>
 #include <limits>
+#include <memory>
 #include <optional>
+#include <quark/platform/window/glfw_window.hpp>
+#include <quark/platform/window/interface_query.hpp>
+#include <quark/vk/instance/instance_bundle.hpp>
+#include <quark/vk/surface_source.hpp>
 #include <set>
 #include <stdexcept>
 #include <string_view>
 #include <vector>
-
-#define GLFW_INCLUDE_NONE
-#include <GLFW/glfw3.h>
 #include <vulkan/vulkan.h>
 
 using std::array;
@@ -268,10 +267,11 @@ auto choose_swapchain_present_mode(
       return present_mode;
     }
   }
+
   return VK_PRESENT_MODE_FIFO_KHR;
 }
 
-auto choose_swapchain_extent(GLFWwindow *window,
+auto choose_swapchain_extent(const quark::platform::IWindow &window,
                              const VkSurfaceCapabilitiesKHR &capabilities)
     -> VkExtent2D {
   if (capabilities.currentExtent.width !=
@@ -281,7 +281,7 @@ auto choose_swapchain_extent(GLFWwindow *window,
 
   int width{0};
   int height{0};
-  glfwGetFramebufferSize(window, &width, &height);
+  window.framebuffer_size(width, height);
 
   VkExtent2D actual_extent{
       .width = static_cast<uint32_t>(width),
@@ -323,12 +323,11 @@ void throw_if_vk_failed(VkResult result, std::string_view step) {
 
 } // namespace
 
-namespace quark {
+namespace quark::vk {
 
 VulkanContext::VulkanContext() {
   create_window();
   create_instance();
-  create_debug_messenger();
   create_surface();
   pick_device();
   create_logical_device();
@@ -364,35 +363,17 @@ VulkanContext::~VulkanContext() {
     vkDestroyDevice(device_, nullptr);
   }
 
-  if (debug_messenger_ != VK_NULL_HANDLE) {
-    // NOLINT (FFS)
-    const auto destroy_fn = std::bit_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(
-        vkGetInstanceProcAddr(instance_, "vkDestroyDebugUtilsMessengerEXT"));
-    if (destroy_fn != nullptr) {
-      destroy_fn(instance_, debug_messenger_, nullptr);
-    }
-  }
-
   if (surface_ != VK_NULL_HANDLE) {
-    vkDestroySurfaceKHR(instance_, surface_, nullptr);
+    vkDestroySurfaceKHR(instance_.vk_instance(), surface_, nullptr);
+    surface_ = VK_NULL_HANDLE;
   }
 
-  if (instance_ != VK_NULL_HANDLE) {
-    vkDestroyInstance(instance_, nullptr);
-  }
-
-  if (window_ != nullptr) {
-    glfwDestroyWindow(window_);
-  }
-
-  if (glfw_initialised_) {
-    glfwTerminate();
-  }
+  instance_.destroy();
 }
 
 void VulkanContext::run() {
-  while (window_ != nullptr && glfwWindowShouldClose(window_) == 0) {
-    glfwPollEvents();
+  while (!window_->should_close()) {
+    window_->poll_events();
     draw_frame();
   }
 
@@ -400,18 +381,16 @@ void VulkanContext::run() {
 }
 
 void VulkanContext::create_window() {
-  if (glfwInit() == GLFW_FALSE) {
-    throw std::runtime_error("glfwInit failed");
-  }
-  glfw_initialised_ = true;
+  auto window = std::make_unique<platform::GlfwWindow>();
 
-  glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-  window_ = glfwCreateWindow(kWindowWidth, kWindowHeight,
-                             kWindowTitle.data(), // NOLINT
-                             nullptr, nullptr);
-  if (window_ == nullptr) {
-    throw std::runtime_error("glfwCreateWindow failed");
-  }
+  platform::IWindow::CreateInfo ci{};
+  ci.width = kWindowWidth;
+  ci.height = kWindowHeight;
+  ci.title = kWindowTitle.data();
+  ci.resizable = true;
+
+  window->create(ci);
+  window_ = std::move(window);
 }
 
 void VulkanContext::create_instance() {
@@ -423,92 +402,35 @@ void VulkanContext::create_instance() {
                  "without them.\n";
   }
 
-  uint32_t required_extension_count{0};
-  const char **const required_extensions =
-      glfwGetRequiredInstanceExtensions(&required_extension_count);
-  if (required_extensions == nullptr || required_extension_count == 0) {
-    throw std::runtime_error("glfwGetRequiredInstanceExtensions failed");
+  const auto *surface = platform::query<IVulkanSurfaceSource>(*window_);
+  if (surface == nullptr) {
+    throw std::runtime_error("Window does not provide IVulkanSurfaceSource");
   }
 
-  vector<const char *> enabled_extensions(
-      required_extensions, required_extensions + required_extension_count);
+  Instance::CreateInfo ci{};
+  ci.app_name = "quark-engine";
+  ci.engine_name = "quark";
+  ci.api_version = VK_API_VERSION_1_3;
+  ci.extensions = surface->required_instance_extensions();
 
-  if (enable_validation_layers &&
-      has_instance_extension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME)) {
-    enabled_extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-    enable_debug_messenger_ = true;
-  }
-
-  VkInstanceCreateFlags instance_create_flags = 0;
-  constexpr const char *portability_enumeration_extension =
-      "VK_KHR_portability_enumeration";
-  if (has_instance_extension(portability_enumeration_extension)) {
-    enabled_extensions.push_back(portability_enumeration_extension);
-    instance_create_flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
-  }
-
-  VkApplicationInfo app_info{};
-  app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-  app_info.pApplicationName = "quark-engine";
-  app_info.applicationVersion = VK_MAKE_API_VERSION(0, 0, 1, 0);
-  app_info.pEngineName = "quark";
-  app_info.engineVersion = VK_MAKE_API_VERSION(0, 0, 1, 0);
-  app_info.apiVersion = VK_API_VERSION_1_3;
-
-  VkDebugUtilsMessengerCreateInfoEXT debug_create_info{};
-
-  VkInstanceCreateInfo create_info{};
-  create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-  create_info.flags = instance_create_flags;
-  create_info.pApplicationInfo = &app_info;
-  create_info.enabledExtensionCount =
-      static_cast<uint32_t>(enabled_extensions.size());
-  create_info.ppEnabledExtensionNames =
-      enabled_extensions.empty() ? nullptr : enabled_extensions.data();
-
-  if (enable_validation_layers) {
-    create_info.enabledLayerCount =
-        static_cast<uint32_t>(kValidationLayers.size());
-    create_info.ppEnabledLayerNames = kValidationLayers.data();
-
-    if (enable_debug_messenger_) {
-      debug_create_info = make_debug_messenger_info();
-      create_info.pNext = &debug_create_info;
-    }
-  }
-
-  throw_if_vk_failed(vkCreateInstance(&create_info, nullptr, &instance_),
-                     "vkCreateInstance");
-}
-
-void VulkanContext::create_debug_messenger() {
-  if (!enable_debug_messenger_) {
-    return;
-  }
-
-  // NOLINT
-  const auto create_fn = std::bit_cast<PFN_vkCreateDebugUtilsMessengerEXT>(
-      vkGetInstanceProcAddr(instance_, "vkCreateDebugUtilsMessengerEXT"));
-  if (create_fn == nullptr) {
-    throw std::runtime_error(
-        "vkCreateDebugUtilsMessengerEXT function not found");
-  }
-
-  const VkDebugUtilsMessengerCreateInfoEXT create_info =
-      make_debug_messenger_info();
-  throw_if_vk_failed(
-      create_fn(instance_, &create_info, nullptr, &debug_messenger_),
-      "vkCreateDebugUtilsMessengerEXT");
+  instance_.create(ci);
 }
 
 void VulkanContext::create_surface() {
-  throw_if_vk_failed(
-      glfwCreateWindowSurface(instance_, window_, nullptr, &surface_),
-      "glfwCreateWindowSurface");
+  const auto *surface = platform::query<vk::IVulkanSurfaceSource>(*window_);
+  if (surface == nullptr) {
+    throw std::runtime_error("Window does not provide IVulkanSurfaceSource");
+  }
+
+  surface_ = surface->create_surface(instance_.vk_instance());
+  if (surface_ == VK_NULL_HANDLE) {
+    throw std::runtime_error("create_surface returned VK_NULL_HANDLE");
+  }
 }
 
 void VulkanContext::pick_device() {
-  const auto selection = pick_physical_device(instance_, surface_);
+  const auto selection =
+      pick_physical_device(instance_.vk_instance(), surface_);
   if (!selection.has_value()) {
     throw std::runtime_error("No suitable Vulkan physical device found");
   }
@@ -583,7 +505,7 @@ void VulkanContext::create_swapchain() {
   const VkPresentModeKHR present_mode =
       choose_swapchain_present_mode(swapchain_support.present_modes);
   const VkExtent2D extent =
-      choose_swapchain_extent(window_, swapchain_support.capabilities);
+      choose_swapchain_extent(*window_, swapchain_support.capabilities);
 
   uint32_t image_count = swapchain_support.capabilities.minImageCount + 1;
   if (swapchain_support.capabilities.maxImageCount > 0U &&
@@ -802,7 +724,10 @@ void VulkanContext::draw_frame() {
     recreate_swapchain();
     return;
   }
-  throw_if_vk_failed(acquire_result, "vkAcquireNextImageKHR");
+
+  if (acquire_result != VK_SUCCESS && acquire_result != VK_SUBOPTIMAL_KHR) {
+    throw_if_vk_failed(acquire_result, "vkAcquireNextImageKHR");
+  }
 
   if (images_in_flight_[image_index] != VK_NULL_HANDLE) {
     throw_if_vk_failed(vkWaitForFences(device_, 1,
@@ -901,8 +826,8 @@ void VulkanContext::recreate_swapchain() {
   int width{0};
   int height{0};
   while (width == 0 || height == 0) {
-    glfwGetFramebufferSize(window_, &width, &height);
-    glfwWaitEvents();
+    window_->framebuffer_size(width, height);
+    window_->wait_events();
   }
 
   vkDeviceWaitIdle(device_);
@@ -929,6 +854,4 @@ void VulkanContext::recreate_swapchain() {
   }
 }
 
-} // namespace quark
-
-// NOLINTEND(misc-include-cleaner)
+} // namespace quark::vk
