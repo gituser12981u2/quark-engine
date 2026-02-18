@@ -5,6 +5,7 @@
 #include <memory>
 #include <quark/platform/window/IWindow.hpp>
 #include <quark/utils/diagnostic.hpp>
+#include <quark/vk/device/device_bundle.hpp>
 #include <quark/vk/instance/instance_bundle.hpp>
 #include <vector>
 #include <vulkan/vulkan.h>
@@ -32,8 +33,7 @@ private:
   void create_window();
   util::Status create_instance();
   void create_surface();
-  void pick_device();
-  void create_logical_device();
+  void create_device();
   void create_swapchain();
   void create_swapchain_image_views();
   void create_render_pass();
@@ -47,12 +47,9 @@ private:
 
   std::unique_ptr<platform::IWindow> window_;
   InstanceBundle instance_;
+  DeviceBundle device_;
 
   VkSurfaceKHR surface_{VK_NULL_HANDLE};
-  VkPhysicalDevice physical_device_{VK_NULL_HANDLE};
-  VkDevice device_{VK_NULL_HANDLE};
-  VkQueue graphics_queue_{VK_NULL_HANDLE};
-  VkQueue present_queue_{VK_NULL_HANDLE};
   VkSwapchainKHR swapchain_{VK_NULL_HANDLE};
   VkFormat swapchain_image_format_{VK_FORMAT_UNDEFINED};
   VkExtent2D swapchain_extent_{};
