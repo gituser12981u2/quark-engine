@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <memory>
 #include <quark/platform/window/IWindow.hpp>
+#include <quark/vk/device/device_bundle.hpp>
 #include <quark/vk/instance/instance_bundle.hpp>
 #include <vector>
 #include <vulkan/vulkan.h>
@@ -29,8 +30,7 @@ private:
   void create_window();
   void create_instance();
   void create_surface();
-  void pick_device();
-  void create_logical_device();
+  void create_device();
   void create_swapchain();
   void create_swapchain_image_views();
   void create_render_pass();
@@ -44,12 +44,9 @@ private:
 
   std::unique_ptr<platform::IWindow> window_;
   InstanceBundle instance_;
+  DeviceBundle device_;
 
   VkSurfaceKHR surface_{VK_NULL_HANDLE};
-  VkPhysicalDevice physical_device_{VK_NULL_HANDLE};
-  VkDevice device_{VK_NULL_HANDLE};
-  VkQueue graphics_queue_{VK_NULL_HANDLE};
-  VkQueue present_queue_{VK_NULL_HANDLE};
   VkSwapchainKHR swapchain_{VK_NULL_HANDLE};
   VkFormat swapchain_image_format_{VK_FORMAT_UNDEFINED};
   VkExtent2D swapchain_extent_{};
@@ -66,9 +63,6 @@ private:
   array<VkFence, kMaxFramesInFlight> in_flight_fences_{};
   vector<VkFence> images_in_flight_;
   uint32_t current_frame_{0};
-
-  uint32_t present_queue_family_index_{0};
-  uint32_t graphics_queue_family_index_{0};
   bool enable_debug_messenger_{false};
 };
 
