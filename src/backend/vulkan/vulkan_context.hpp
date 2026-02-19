@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <memory>
 #include <quark/platform/window/IWindow.hpp>
+#include <quark/utils/diagnostic.hpp>
 #include <quark/vk/instance/instance_bundle.hpp>
 #include <vector>
 #include <vulkan/vulkan.h>
@@ -15,10 +16,10 @@ namespace quark::vk {
 
 class VulkanContext final {
 public:
-  VulkanContext();
+  VulkanContext() = default;
   ~VulkanContext();
 
-  void run();
+  util::Status run();
 
   VulkanContext(const VulkanContext &) = delete;
   VulkanContext &operator=(const VulkanContext &) = delete;
@@ -26,8 +27,10 @@ public:
   VulkanContext &operator=(VulkanContext &&) = delete;
 
 private:
+  util::Status init();
+
   void create_window();
-  void create_instance();
+  util::Status create_instance();
   void create_surface();
   void pick_device();
   void create_logical_device();

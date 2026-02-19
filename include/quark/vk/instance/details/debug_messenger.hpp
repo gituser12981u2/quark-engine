@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <quark/utils/diagnostic.hpp>
 #include <quark/utils/raii.hpp>
 #include <vulkan/vulkan_core.h>
 
@@ -23,14 +24,11 @@ public:
   };
 
   DebugMessenger() = default;
-  explicit DebugMessenger(VkInstance instance, const CreateInfo &ci) {
-    create(instance, ci);
-  }
   ~DebugMessenger() { destroy(); }
 
   QUARK_MOVE_ONLY(DebugMessenger);
 
-  void create(VkInstance instance, const CreateInfo &ci);
+  util::Status create(VkInstance instance, const CreateInfo &ci);
   void destroy() noexcept;
 
   [[nodiscard]] bool valid() const noexcept {

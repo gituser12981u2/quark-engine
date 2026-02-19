@@ -77,7 +77,7 @@ CheckOptions:
     value: "std::string_view;std::span;std::experimental::string_view"
 
   - key: readability-function-cognitive-complexity.Threshold
-    value: 30
+    value: 60
   - key: readability-function-size.LineThreshold
     value: 150
   - key: readability-simplify-boolean-expr.ChainedConditionalReturn

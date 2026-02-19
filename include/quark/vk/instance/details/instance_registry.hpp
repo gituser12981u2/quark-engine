@@ -4,6 +4,7 @@
 #include "instance_handle.hpp"
 
 #include <cstdint>
+#include <quark/utils/diagnostic.hpp>
 #include <quark/utils/raii.hpp>
 #include <vector>
 #include <vulkan/vulkan_core.h>
@@ -19,7 +20,8 @@ public:
 
   void clear() noexcept;
 
-  [[nodiscard]] InstanceHandle create(const Instance::CreateInfo &ci);
+  [[nodiscard]] util::Result<InstanceHandle>
+  create(const Instance::CreateInfo &ci);
   void destroy(InstanceHandle handle) noexcept;
 
   [[nodiscard]] bool alive(InstanceHandle handle) const noexcept;
@@ -34,8 +36,8 @@ private:
     bool live = false;
   };
 
-  [[nodiscard]] bool matches_(InstanceHandle handle,
-                              const Slot &s) const noexcept;
+  [[nodiscard]] static bool matches_(InstanceHandle handle,
+                                     const Slot &s) noexcept;
 
   std::vector<Slot> slots_;
   std::vector<uint32_t> free_;

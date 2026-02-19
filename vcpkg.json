@@ -3,7 +3,12 @@
   "version-string": "0.1.0",
   "dependencies": [
     "glfw3",
-    "vulkan-headers",
+    "spdlog",
+    "fmt",
+    {
+      "name": "vulkan-headers",
+      "platform": "linux"
+    },
     {
       "name": "vulkan-loader",
       "platform": "linux",
@@ -12,10 +17,6 @@
         "xcb",
         "xlib"
       ]
-    },
-    {
-      "name": "vulkan-loader",
-      "platform": "!linux"
     }
   ]
 }

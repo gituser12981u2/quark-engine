@@ -2,6 +2,7 @@
 build/
 compile_commands.json
 .cache
+logs/
 
 # macOS
 .DS_Store

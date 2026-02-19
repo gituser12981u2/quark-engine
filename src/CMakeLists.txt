@@ -10,6 +10,7 @@ target_compile_features(quark_headers INTERFACE cxx_std_23)
 
 add_subdirectory(backend)
 add_subdirectory(platform)
+add_subdirectory(utils)
 
 add_executable(quark_app main.cpp)
 set_target_properties(quark_app PROPERTIES
@@ -19,6 +20,7 @@ set_target_properties(quark_app PROPERTIES
 target_link_libraries(quark_app PRIVATE 
     quark::backend
     quark::platform
+    quark::utils
 )
 
 target_compile_options(quark_app PRIVATE
@@ -30,6 +32,7 @@ add_custom_target(run
   COMMAND $<TARGET_FILE:quark_app>
   DEPENDS quark_app
   WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+  USES_TERMINAL
 )
 
 quark_apply_sanitizers(quark_app)

@@ -11,6 +11,7 @@ target_link_libraries(quark_backend_vulkan
   PUBLIC 
     quark::headers
     Vulkan::Vulkan
+    fmt::fmt
 )
 
 target_include_directories(quark_backend_vulkan

@@ -11,11 +11,13 @@
 #include <optional>
 #include <quark/platform/window/glfw_window.hpp>
 #include <quark/platform/window/interface_query.hpp>
+#include <quark/vk/diagnostic_prelude.hpp>
 #include <quark/vk/instance/instance_bundle.hpp>
 #include <quark/vk/surface_source.hpp>
 #include <set>
 #include <stdexcept>
 #include <string_view>
+#include <sys/wait.h>
 #include <vector>
 #include <vulkan/vulkan.h>
 
@@ -325,9 +327,11 @@ void throw_if_vk_failed(VkResult result, std::string_view step) {
 
 namespace quark::vk {
 
-VulkanContext::VulkanContext() {
+util::Status VulkanContext::init() {
   create_window();
-  create_instance();
+
+  QUARK_TRY_STATUS(create_instance());
+
   create_surface();
   pick_device();
   create_logical_device();
@@ -338,6 +342,8 @@ VulkanContext::VulkanContext() {
   create_framebuffers();
   create_command_buffers();
   create_sync_objects();
+
+  return {};
 }
 
 VulkanContext::~VulkanContext() {
@@ -371,13 +377,18 @@ VulkanContext::~VulkanContext() {
   instance_.destroy();
 }
 
-void VulkanContext::run() {
+util::Status VulkanContext::run() {
+  QUARK_TRY_STATUS(init());
+  QUARK_LOG_INFO("Vulkan initialised successfully.");
+
   while (!window_->should_close()) {
     window_->poll_events();
     draw_frame();
   }
 
   vkDeviceWaitIdle(device_);
+
+  return {};
 }
 
 void VulkanContext::create_window() {
@@ -393,27 +404,29 @@ void VulkanContext::create_window() {
   window_ = std::move(window);
 }
 
-void VulkanContext::create_instance() {
+util::Status VulkanContext::create_instance() {
   const bool enable_validation_layers =
       kEnableValidationLayers && check_validation_layer_support();
 
   if (kEnableValidationLayers && !enable_validation_layers) {
-    std::cerr << "Validation layers requested, but unavailable. Continuing "
-                 "without them.\n";
+    QUARK_LOG_WARN("Validation layers requested, but unavailable. Continuing "
+                   "without them.");
   }
 
   const auto *surface = platform::query<IVulkanSurfaceSource>(*window_);
-  if (surface == nullptr) {
-    throw std::runtime_error("Window does not provide IVulkanSurfaceSource");
-  }
+  QUARK_ENSURE(surface != nullptr,
+               QUARK_ERR(util::Errc::Unsupported,
+                         "Window does not provide IVulkanSurfaceSource"));
 
   Instance::CreateInfo ci{};
   ci.app_name = "quark-engine";
   ci.engine_name = "quark";
   ci.api_version = VK_API_VERSION_1_3;
+  ci.enable_debug_messenger = true;
   ci.extensions = surface->required_instance_extensions();
 
-  instance_.create(ci);
+  QUARK_TRY_STATUS(instance_.create(ci));
+  return {};
 }
 
 void VulkanContext::create_surface() {
@@ -441,7 +454,7 @@ void VulkanContext::pick_device() {
 
   VkPhysicalDeviceProperties properties{};
   vkGetPhysicalDeviceProperties(physical_device_, &properties);
-  std::cout << std::format("Selected GPU: {}\n", properties.deviceName);
+  QUARK_LOG_INFO("Selected GPU: {}", properties.deviceName);
 }
 
 void VulkanContext::create_logical_device() {

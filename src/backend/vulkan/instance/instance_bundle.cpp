@@ -1,4 +1,5 @@
 #include <cstddef>
+#include <quark/utils/diagnostic.hpp>
 #include <quark/vk/instance/details/debug_messenger.hpp>
 #include <quark/vk/instance/details/instance.hpp>
 #include <quark/vk/instance/details/instance_handle.hpp>
@@ -7,10 +8,11 @@
 
 namespace quark::vk {
 
-void InstanceBundle::create(const Instance::CreateInfo &ci) {
+util::Status InstanceBundle::create(const Instance::CreateInfo &ci) {
   destroy();
 
-  handle_ = registry_.create(ci);
+  QUARK_TRY_ASSIGN(handle_, registry_.create(ci));
+  return {};
 }
 
 void InstanceBundle::destroy() noexcept {

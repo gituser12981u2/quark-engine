@@ -1,5 +1,6 @@
 #include <cstdint>
 #include <cstdlib>
+#include <quark/utils/diagnostic.hpp>
 #include <quark/vk/instance/details/instance.hpp>
 #include <quark/vk/instance/details/instance_handle.hpp>
 #include <quark/vk/instance/details/instance_registry.hpp>
@@ -7,8 +8,7 @@
 
 namespace quark::vk {
 
-bool InstanceRegistry::matches_(InstanceHandle handle,
-                                const Slot &s) const noexcept {
+bool InstanceRegistry::matches_(InstanceHandle handle, const Slot &s) noexcept {
   return handle.valid() && s.live && s.generation == handle.generation;
 }
 
@@ -28,7 +28,8 @@ void InstanceRegistry::clear() noexcept {
   }
 }
 
-InstanceHandle InstanceRegistry::create(const Instance::CreateInfo &ci) {
+util::Result<InstanceHandle>
+InstanceRegistry::create(const Instance::CreateInfo &ci) {
   uint32_t idx = 0;
 
   if (!free_.empty()) {
@@ -47,7 +48,7 @@ InstanceHandle InstanceRegistry::create(const Instance::CreateInfo &ci) {
     ++s.generation;
   }
 
-  s.instance.create(ci);
+  QUARK_TRY_STATUS(s.instance.create(ci));
   s.live = true;
 
   return InstanceHandle{.index = idx, .generation = s.generation};

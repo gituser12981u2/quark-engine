@@ -1,6 +1,7 @@
 #include <bit>
+#include <quark/utils/diagnostic.hpp>
+#include <quark/vk/diagnostic_prelude.hpp>
 #include <quark/vk/instance/details/debug_messenger.hpp>
-#include <stdexcept>
 #include <vulkan/vulkan_core.h>
 
 namespace quark::vk {
@@ -21,21 +22,17 @@ load_destroy_fn(VkInstance instance) {
 
 } // namespace
 
-void DebugMessenger::create(VkInstance instance, const CreateInfo &ci) {
+util::Status DebugMessenger::create(VkInstance instance, const CreateInfo &ci) {
   destroy();
-
-  if (instance == VK_NULL_HANDLE) {
-    throw std::runtime_error("DebugMessenger::create: Instance is null");
-  }
-
-  if (ci.callback == nullptr) {
-    throw std::runtime_error("DebugMessenger::create: callback is null");
-  }
+  QUARK_ENSURE(instance != VK_NULL_HANDLE,
+               QUARK_ERR(util::Errc::InvalidArg, "Instance is VK_NULL_HANDLE"));
+  QUARK_ENSURE(ci.callback != nullptr,
+               QUARK_ERR(util::Errc::InvalidArg, "callback is null"));
 
   const auto create_fn = load_create_fn(instance);
-  if (create_fn == nullptr) {
-    throw std::runtime_error("vkCreateDebugUtilsMessengerEXT not found");
-  }
+  QUARK_ENSURE(create_fn != nullptr,
+               QUARK_ERR(util::Errc::Unsupported,
+                         "vkCreateDebugUtilsMessengerEXT not found"));
 
   VkDebugUtilsMessengerCreateInfoEXT info{};
   info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
@@ -45,13 +42,11 @@ void DebugMessenger::create(VkInstance instance, const CreateInfo &ci) {
   info.pUserData = ci.user_data;
 
   VkDebugUtilsMessengerEXT out = VK_NULL_HANDLE;
-  const VkResult r = create_fn(instance, &info, nullptr, &out);
-  if (r != VK_SUCCESS) {
-    throw std::runtime_error("vkCreateDebugUtilsMessengerEXT failed");
-  }
-
+  QUARK_VK_TRY(create_fn(instance, &info, nullptr, &out));
   instance_ = instance;
   messenger_ = out;
+
+  return {};
 }
 
 void DebugMessenger::destroy() noexcept {

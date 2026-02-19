@@ -9,8 +9,8 @@ add_library(quark::backend::vulkan::instance ALIAS quark_backend_vulkan_instance
 target_link_libraries(quark_backend_vulkan_instance
   PUBLIC
     quark::headers
-  PRIVATE 
     Vulkan::Vulkan
+    fmt::fmt
 )
 
 target_include_directories(quark_backend_vulkan_instance
