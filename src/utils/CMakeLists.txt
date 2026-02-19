@@ -11,6 +11,7 @@ target_link_libraries(quark_utils
   PUBLIC 
     quark::headers
     fmt::fmt
+    tl::expected
 )
 
 target_include_directories(quark_utils

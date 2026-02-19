@@ -5,8 +5,11 @@ target_include_directories(quark_headers INTERFACE
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
 )
-
 target_compile_features(quark_headers INTERFACE cxx_std_23)
+target_compile_options(quark_headers INTERFACE
+  $<$<CXX_COMPILER_ID:MSVC>:/W4 /permissive- /Zc:preprocessor>
+  $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic -Wshadow -pedantic-errors>
+)
 
 add_subdirectory(backend)
 add_subdirectory(platform)
@@ -24,7 +27,7 @@ target_link_libraries(quark_app PRIVATE
 )
 
 target_compile_options(quark_app PRIVATE
-  $<$<CXX_COMPILER_ID:MSVC>:/W4 /permissive->
+  $<$<CXX_COMPILER_ID:MSVC>:/W4 /permissive /Zc:preprocessor->
   $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic -Wshadow -pedantic-errors>
 )
 

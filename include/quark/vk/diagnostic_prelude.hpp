@@ -8,7 +8,7 @@
   do {                                                                         \
     const VkResult _q_vk_r = (call);                                           \
     if (_q_vk_r != VK_SUCCESS) {                                               \
-      return std::unexpected(::quark::vk::vk_error(_q_vk_r, #call));           \
+      return util::unexpected(::quark::vk::vk_error(_q_vk_r, #call));          \
     }                                                                          \
   } while (0)
 
@@ -16,6 +16,6 @@
   do {                                                                         \
     const VkResult _q_vk_r = (call);                                           \
     if (_q_vk_r != VK_SUCCESS && _q_vk_r != VK_INCOMPLETE) {                   \
-      return std::unexpected(::quark::vk::vk_error(_q_vk_r, #call));           \
+      return util::unexpected(::quark::vk::vk_error(_q_vk_r, #call));          \
     }                                                                          \
   } while (0)

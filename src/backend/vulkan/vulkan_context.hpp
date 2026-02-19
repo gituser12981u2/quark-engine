@@ -72,7 +72,6 @@ private:
 
   uint32_t present_queue_family_index_{0};
   uint32_t graphics_queue_family_index_{0};
-  bool enable_debug_messenger_{false};
 };
 
 } // namespace quark::vk

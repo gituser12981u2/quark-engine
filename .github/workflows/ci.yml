@@ -51,7 +51,8 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew update
-          brew install ninja cmake
+          command -v ninja >/dev/null 2>&1 || brew install ninja
+          command -v cmake >/dev/null 2>&1 || brew install cmake
 
       - name: Set up MSVC dev cmd (Windows)
         if: runner.os == 'Windows'
@@ -59,8 +60,14 @@ jobs:
 
       - name: Install dependencies (Windows)
         if: runner.os == 'Windows'
+        shell: pwsh
         run: |
-          choco install -y ninja cmake
+          if (-not (Get-Command cmake -ErrorAction SilentlyContinue)) {
+            choco install -y cmake
+          }
+          if (-not (Get-Command ninja -ErrorAction SilentlyContinue)) {
+            choco install -y ninja
+          }
 
       - name: Bootstrap vcpkg (macOS/Linux)
         if: runner.os != 'Windows'

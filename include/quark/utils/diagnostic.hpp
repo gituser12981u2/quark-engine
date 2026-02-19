@@ -1,15 +1,37 @@
 #pragma once
 
 #include <cstdint>
-#include <expected>
 #include <fmt/format.h>
+#include <memory>
 #include <source_location>
 #include <span>
 #include <string>
 #include <string_view>
 #include <vector>
 
+#if __has_include(<expected>) && defined(__cpp_lib_expected)
+#include <expected>
+#else
+#include <tl/expected.hpp>
+#endif
+
 namespace util {
+
+#if __has_include(<expected>) && defined(__cpp_lib_expected)
+
+template <class T, class E> using expected = std::expected<T, E>;
+
+template <class E> [[nodiscard]] inline auto unexpected(E &&e) {
+  return std::unexpected<std::remove_cvref_t<E>>(std::forward<E>(e));
+}
+#else
+
+template <class T, class E> using expected = tl::expected<T, E>;
+
+template <class E> [[nodiscard]] inline auto unexpected(E &&e) {
+  return tl::unexpected<std::remove_cvref_t<E>>(std::forward<E>(e));
+}
+#endif
 
 /**
  * @brief Severity level for diagnostic events and errors.
@@ -43,8 +65,10 @@ enum class Errc : std::uint8_t {
  */
 struct DiagnosticEvent {
   Severity severity = Severity::Info;
-  std::string_view
-      module; /// optional; sink may derive from {@code where.file_name()}
+
+  /// optional; sink derives from {@code where.file_name()}
+  std::string_view module;
+
   std::string msg;
   std::source_location where = std::source_location::current();
 };
@@ -65,11 +89,12 @@ struct Error {
   Errc code = Errc::Unknown;
   Severity severity = Severity::Error;
 
-  std::int32_t domain =
-      0; ///< Native/API payload (e.g. VkResult, HRESULT, errno, etc.)
+  /// Native/API payload (e.g. VkResult, HRESULT, errno, etc.)
+  std::int32_t domain = 0;
 
-  std::string_view
-      module; /// optional; sink may derive from {@code where.file_name()}
+  /// optional; sink derives from {@code where.file_name()}
+  std::string_view module;
+
   std::string msg;
   std::source_location where = std::source_location::current();
 
@@ -86,7 +111,7 @@ struct Error {
 /**
  * @brief Result type.
  */
-template <class T> using Result = std::expected<T, Error>;
+template <class T> using Result = util::expected<T, Error>;
 
 /**
  * @brief Success-or-Error status type.
@@ -122,7 +147,7 @@ inline void report_if_error(const util::Result<T> &r) noexcept {
   do {                                                                         \
     auto _q_res = (expr);                                                      \
     if (!_q_res) {                                                             \
-      return std::unexpected(std::move(_q_res.error()));                       \
+      return ::util::unexpected(std::move(_q_res.error()));                    \
     }                                                                          \
   } while (0)
 
@@ -130,20 +155,20 @@ inline void report_if_error(const util::Result<T> &r) noexcept {
   do {                                                                         \
     auto _q_res = (expr);                                                      \
     if (!_q_res) {                                                             \
-      return std::unexpected(std::move(_q_res.error()));                       \
+      return ::util::unexpected(std::move(_q_res.error()));                    \
     }                                                                          \
     (lhs) = std::move(_q_res.value());                                         \
   } while (0)
 
 #define QUARK_FAIL(err_expr)                                                   \
   do {                                                                         \
-    return std::unexpected((err_expr));                                        \
+    return ::util::unexpected((err_expr));                                     \
   } while (0)
 
 #define QUARK_ENSURE(cond, err_expr)                                           \
   do {                                                                         \
     if (!(cond)) {                                                             \
-      return std::unexpected((err_expr));                                      \
+      return ::util::unexpected((err_expr));                                   \
     }                                                                          \
   } while (0)
 

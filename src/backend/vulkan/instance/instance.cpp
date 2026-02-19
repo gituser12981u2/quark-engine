@@ -1,4 +1,3 @@
-#include "quark/utils/diagnostic.hpp"
 #include <cstdint>
 #include <cstring>
 #include <quark/vk/diagnostic_prelude.hpp>
@@ -65,13 +64,10 @@ enumerate_instance_extensions() {
     }
 
     if (r != VK_INCOMPLETE) {
-      return std::unexpected(::quark::vk::vk_error(
+      return util::unexpected(::quark::vk::vk_error(
           r, "vkEnumerateInstanceExtensionProperties(data)",
           std::source_location::current()));
     }
-
-    // extension_count = written;
-    // props.resize(extension_count);
   }
 }
 
@@ -103,7 +99,7 @@ enable_extension_if_available(std::vector<const char *> &exts, const char *name,
 
   if (!has) {
     if (required) {
-      return std::unexpected(QUARK_ERR(
+      return util::unexpected(QUARK_ERR(
           util::Errc::Unsupported, "{} requested by not supported", log_name));
     }
 

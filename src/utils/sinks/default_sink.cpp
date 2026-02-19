@@ -1,4 +1,4 @@
-#include <print>
+#include <fmt/printf.h>
 #include <quark/utils/diagnostic.hpp>
 #include <string_view>
 
@@ -24,7 +24,7 @@ void default_sink(const DiagnosticEvent &e) noexcept {
   const auto &w = e.where;
   const std::string_view rel = util::details::make_relative(w.file_name());
 
-  std::println(stderr, "[{}] {} @ {}:{} ({}): {}", e.module,
+  fmt::println(stderr, "[{}] {} @ {}:{} ({}): {}", e.module,
                severity_to_cstr_(e.severity), rel, w.line(), w.function_name(),
                e.msg);
 }

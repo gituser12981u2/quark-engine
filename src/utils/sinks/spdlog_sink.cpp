@@ -5,6 +5,7 @@
 #include <spdlog/sinks/rotating_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
+#include <string>
 
 namespace util {
 
@@ -42,41 +43,65 @@ static spdlog::level::level_enum level_from_int(int v) noexcept {
   }
 }
 
-std::shared_ptr<spdlog::logger>
+std::shared_ptr<SpdlogContext>
 make_spdlog_logger(const SpdlogLoggerConfig &cfg) {
-  std::vector<spdlog::sink_ptr> sinks;
-  sinks.reserve(cfg.console.enable ? 2 : 1);
+  auto ctx = std::make_shared<SpdlogContext>();
 
-  auto file_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
-      std::string(cfg.file.file_path), cfg.file.max_bytes, cfg.file.max_files);
-  file_sink->set_pattern(std::string(cfg.pattern.file_pattern));
-  sinks.push_back(file_sink);
+  // File logger
+  {
+    auto file_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
+        std::string(cfg.file.file_path), cfg.file.max_bytes,
+        cfg.file.max_files);
+    file_sink->set_pattern(std::string(cfg.pattern.file_pattern));
 
-  if (cfg.console.enable) {
-    spdlog::sink_ptr console_sink =
-        cfg.console.to_stderr
-            ? spdlog::sink_ptr{std::make_shared<
-                  spdlog::sinks::stderr_color_sink_mt>()}
-            : spdlog::sink_ptr{
-                  std::make_shared<spdlog::sinks::stdout_color_sink_mt>()};
-
-    console_sink->set_pattern(std::string(cfg.pattern.console_pattern));
-    sinks.push_back(std::move(console_sink));
+    ctx->file = std::make_shared<spdlog::logger>(std::string(cfg.logger_name),
+                                                 file_sink);
+    ctx->file->set_level(level_from_int(cfg.level));
+    ctx->file->flush_on(level_from_int(cfg.flush_on));
+    spdlog::register_logger(ctx->file);
   }
 
-  auto lg = std::make_shared<spdlog::logger>(std::string(cfg.logger_name),
-                                             sinks.begin(), sinks.end());
+  // Console logger
+  ctx->console_enabled = cfg.console.enable;
+  if (cfg.console.enable) {
+    auto make_console_sink = [&]() -> spdlog::sink_ptr {
+      if (cfg.console.to_stderr) {
+        return std::make_shared<spdlog::sinks::stderr_color_sink_mt>();
+      }
+      return std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+    };
 
-  lg->set_level(level_from_int(cfg.level));
-  lg->flush_on(level_from_int(cfg.flush_on));
+    // Console with no location in pattern
+    {
+      auto s = make_console_sink();
+      s->set_pattern(std::string(cfg.pattern.console_info_pattern)); // no %s:%#
 
-  spdlog::register_logger(lg);
-  return lg;
+      ctx->console_info = std::make_shared<spdlog::logger>(
+          std::string(cfg.logger_name) + ".console_info", s);
+      ctx->console_info->set_level(spdlog::level::info);
+      spdlog::register_logger(ctx->console_info);
+    }
+
+    // Warn/Error console with included location
+    {
+      auto s = make_console_sink();
+      // static constexpr const char *kWarnPattern = "%^%l%$ | %s:%# | %v";
+      s->set_pattern(std::string(cfg.pattern.console_warn_pattern));
+
+      ctx->console_warn = std::make_shared<spdlog::logger>(
+          std::string(cfg.logger_name) + ".console_warn", s);
+      ctx->console_warn->set_level(spdlog::level::warn);
+      ctx->console_warn->flush_on(spdlog::level::warn);
+      spdlog::register_logger(ctx->console_warn);
+    }
+  }
+
+  return ctx;
 }
 
-void spdlog_sink(void *ctx, const util::DiagnosticEvent &e) noexcept {
-  auto *lg = static_cast<spdlog::logger *>(ctx);
-  if (lg == nullptr) {
+void spdlog_sink(void *ctx_ptr, const util::DiagnosticEvent &e) noexcept {
+  auto *ctx = static_cast<SpdlogContext *>(ctx_ptr);
+  if (ctx == nullptr || !ctx->file) {
     return;
   }
 
@@ -84,11 +109,38 @@ void spdlog_sink(void *ctx, const util::DiagnosticEvent &e) noexcept {
   spdlog::source_loc loc{w.file_name(), static_cast<int>(w.line()),
                          w.function_name()};
 
-  // Prefix module into message
   if (!e.module.empty()) {
-    lg->log(loc, to_spd(e.severity), "[{}] {}", e.module, e.msg);
+    ctx->file->log(loc, to_spd(e.severity), "[{}] {}", e.module, e.msg);
   } else {
-    lg->log(loc, to_spd(e.severity), "{}", e.msg);
+    ctx->file->log(loc, to_spd(e.severity), "{}", e.msg);
+  }
+
+  if (!ctx->console_enabled) {
+    return;
+  }
+
+  // Console routing: info -> no loc; warn/error -> with loc.
+  if (e.severity == util::Severity::Info) {
+    if (!ctx->console_info) {
+      return;
+    }
+
+    if (!e.module.empty()) {
+      ctx->console_info->log(to_spd(e.severity), "[{}] {}", e.module, e.msg);
+    } else {
+      ctx->console_info->log(to_spd(e.severity), "{}", e.msg);
+    }
+  } else {
+    if (!ctx->console_warn) {
+      return;
+    }
+
+    if (!e.module.empty()) {
+      ctx->console_warn->log(loc, to_spd(e.severity), "[{}] {}", e.module,
+                             e.msg);
+    } else {
+      ctx->console_warn->log(loc, to_spd(e.severity), "{}", e.msg);
+    }
   }
 }
 

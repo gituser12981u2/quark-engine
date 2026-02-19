@@ -1,6 +1,5 @@
 #include <atomic>
 #include <memory>
-#include <print>
 #include <quark/utils/details/diagnostic_details.hpp>
 #include <quark/utils/diagnostic.hpp>
 #include <quark/utils/sinks/default_sink.hpp>

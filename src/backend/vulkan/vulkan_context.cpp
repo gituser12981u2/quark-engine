@@ -5,7 +5,6 @@
 #include <cstdint>
 #include <cstring>
 #include <format>
-#include <iostream>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -17,7 +16,6 @@
 #include <set>
 #include <stdexcept>
 #include <string_view>
-#include <sys/wait.h>
 #include <vector>
 #include <vulkan/vulkan.h>
 
@@ -55,23 +53,6 @@ struct SwapchainSupportDetails {
   vector<VkPresentModeKHR> present_modes;
 };
 
-VKAPI_ATTR VkBool32 VKAPI_CALL
-debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
-               VkDebugUtilsMessageTypeFlagsEXT message_type,
-               const VkDebugUtilsMessengerCallbackDataEXT *callback_data,
-               void *user_data) {
-  (void)message_type;
-  (void)user_data;
-
-  if ((message_severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) !=
-          0U ||
-      (message_severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) !=
-          0U) {
-    std::cerr << std::format("[Vulkan] {}\n", callback_data->pMessage);
-  }
-  return VK_FALSE;
-}
-
 auto check_validation_layer_support() -> bool {
   uint32_t layer_count{0};
   vkEnumerateInstanceLayerProperties(&layer_count, nullptr);
@@ -93,20 +74,6 @@ auto check_validation_layer_support() -> bool {
   return true;
 }
 
-auto has_instance_extension(const char *extension_name) -> bool {
-  uint32_t extension_count{0};
-  vkEnumerateInstanceExtensionProperties(nullptr, &extension_count, nullptr);
-
-  vector<VkExtensionProperties> extensions(extension_count);
-  vkEnumerateInstanceExtensionProperties(nullptr, &extension_count,
-                                         extensions.data());
-
-  return std::ranges::any_of(
-      extensions, [extension_name](const VkExtensionProperties &extension) {
-        return std::strcmp(extension.extensionName, extension_name) == 0;
-      });
-}
-
 auto has_device_extension(VkPhysicalDevice physical_device,
                           const char *extension_name) -> bool {
   uint32_t extension_count{0};
@@ -121,19 +88,6 @@ auto has_device_extension(VkPhysicalDevice physical_device,
       extensions, [extension_name](const VkExtensionProperties &extension) {
         return std::strcmp(extension.extensionName, extension_name) == 0;
       });
-}
-
-auto make_debug_messenger_info() -> VkDebugUtilsMessengerCreateInfoEXT {
-  VkDebugUtilsMessengerCreateInfoEXT create_info{};
-  create_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-  create_info.messageSeverity =
-      VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
-      VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-  create_info.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
-                            VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
-                            VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-  create_info.pfnUserCallback = debug_callback;
-  return create_info;
 }
 
 auto find_graphics_queue_family(VkPhysicalDevice physical_device)
