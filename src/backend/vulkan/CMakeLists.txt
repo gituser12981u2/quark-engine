@@ -10,10 +10,8 @@ target_link_libraries(quark_backend_vulkan
   INTERFACE
     quark::backend::vulkan::instance
     quark::backend::vulkan::device
-  PUBLIC
-    quark::headers
-    Vulkan::Vulkan
-    fmt::fmt
+  PUBLIC 
+    quark::headers::vk
 )
 
 target_include_directories(quark_backend_vulkan

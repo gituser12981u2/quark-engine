@@ -1,14 +1,31 @@
-add_library(quark_headers INTERFACE)
-add_library(quark::headers ALIAS quark_headers)
+add_library(quark_build_settings INTERFACE)
+add_library(quark::build_settings ALIAS quark_build_settings)
 
-target_include_directories(quark_headers INTERFACE
+target_include_directories(quark_build_settings INTERFACE
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
 )
-target_compile_features(quark_headers INTERFACE cxx_std_23)
-target_compile_options(quark_headers INTERFACE
+target_compile_features(quark_build_settings INTERFACE cxx_std_23)
+target_compile_options(quark_build_settings INTERFACE
   $<$<CXX_COMPILER_ID:MSVC>:/W4 /permissive- /Zc:preprocessor>
   $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic -Wshadow -pedantic-errors>
+)
+
+add_library(quark_headers_core INTERFACE)
+add_library(quark::headers::core ALIAS quark_headers_core)
+
+target_link_libraries(quark_headers_core
+  INTERFACE
+    quark::build_settings
+    fmt::fmt
+)
+
+add_library(quark_headers_vk INTERFACE)
+add_library(quark::headers::vk ALIAS quark_headers_vk)
+target_link_libraries(quark_headers_vk
+  INTERFACE
+    quark::headers::core
+    Vulkan::Vulkan
 )
 
 add_subdirectory(backend)

@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <memory>
 #include <quark/platform/window/IWindow.hpp>
-#include <quark/utils/diagnostic.hpp>
+#include <quark/utils/result.hpp>
 #include <quark/vk/device/device_bundle.hpp>
 #include <quark/vk/instance/instance_bundle.hpp>
 #include <vector>

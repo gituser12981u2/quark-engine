@@ -6,8 +6,7 @@ add_library(quark::utils::sinks ALIAS quark_utils_sinks)
 
 target_link_libraries(quark_utils_sinks
   PUBLIC 
-    quark::headers
-    fmt::fmt
+    quark::headers::core
 )
 
 target_include_directories(quark_utils_sinks

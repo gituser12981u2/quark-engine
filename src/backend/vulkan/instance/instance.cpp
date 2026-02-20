@@ -6,7 +6,6 @@
 #include <string_view>
 #include <vector>
 #include <vulkan/vulkan.h>
-#include <vulkan/vulkan_core.h>
 
 namespace quark::vk {
 

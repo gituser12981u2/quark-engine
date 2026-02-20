@@ -5,9 +5,8 @@ add_library(quark::platform::window ALIAS quark_platform_window)
 
 target_link_libraries(quark_platform_window
   PUBLIC
-    quark::headers
+    quark::headers::core
   PRIVATE 
-    Vulkan::Vulkan
     glfw
 )
 

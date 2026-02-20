@@ -82,7 +82,7 @@ else
   VCPKG_TRIPLET := x64-windows
 endif
 
-.PHONY: deps vcpkg-install configure build run clean
+.PHONY: deps vcpkg-install configure build run clean bench-noop bench-touch
 
 ###  testing this for non-gh actions
 deps:
@@ -155,3 +155,4 @@ run: build
 
 clean:
 	rm -rf build
+
