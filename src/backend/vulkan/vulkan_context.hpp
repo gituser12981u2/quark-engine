@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <memory>
 #include <quark/platform/window/IWindow.hpp>
-#include <quark/utils/diagnostic.hpp>
+#include <quark/utils/result.hpp>
 #include <quark/vk/device/device_bundle.hpp>
 #include <quark/vk/instance/instance_bundle.hpp>
 #include <vector>
@@ -66,9 +66,6 @@ private:
   array<VkFence, kMaxFramesInFlight> in_flight_fences_{};
   vector<VkFence> images_in_flight_;
   uint32_t current_frame_{0};
-
-  uint32_t present_queue_family_index_{0};
-  uint32_t graphics_queue_family_index_{0};
 };
 
 } // namespace quark::vk

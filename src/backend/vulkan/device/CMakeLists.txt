@@ -7,9 +7,7 @@ add_library(quark::backend::vulkan::device ALIAS quark_backend_vulkan_device)
 
 target_link_libraries(quark_backend_vulkan_device
   PUBLIC
-    quark::headers
-  PRIVATE
-    Vulkan::Vulkan
+    quark::headers::vk
 )
 
 target_include_directories(quark_backend_vulkan_device

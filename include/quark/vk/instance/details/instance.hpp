@@ -1,10 +1,9 @@
 #pragma once
 
-#include "debug_messenger.hpp"
-
 #include <cstdint>
-#include <quark/utils/diagnostic.hpp>
 #include <quark/utils/raii.hpp>
+#include <quark/utils/result.hpp>
+#include <quark/vk/instance/details/debug_messenger.hpp>
 #include <string_view>
 #include <vector>
 #include <vulkan/vulkan_core.h>

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "quark/utils/diagnostic.hpp"
 #include <quark/utils/raii.hpp>
+#include <quark/utils/result.hpp>
 #include <quark/vk/instance/details/debug_messenger.hpp>
 #include <quark/vk/instance/details/instance.hpp>
 #include <quark/vk/instance/details/instance_handle.hpp>

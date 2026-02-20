@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cstdint>
-#include <fmt/format.h>
+#include <fmt/core.h>
 #include <quark/utils/diagnostic.hpp>
 #include <source_location>
 #include <string_view>

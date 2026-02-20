@@ -1,9 +1,9 @@
 #pragma once
 
 #include <cstddef>
-#include <quark/utils/diagnostic.hpp>
 #include <quark/utils/raii.hpp>
-#include <vulkan/vulkan_core.h>
+#include <quark/utils/result.hpp>
+#include <vulkan/vulkan.h>
 
 namespace quark::vk {
 

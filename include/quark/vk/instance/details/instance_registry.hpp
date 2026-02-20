@@ -1,11 +1,10 @@
 #pragma once
 
-#include "instance.hpp"
-#include "instance_handle.hpp"
-
 #include <cstdint>
-#include <quark/utils/diagnostic.hpp>
 #include <quark/utils/raii.hpp>
+#include <quark/utils/result.hpp>
+#include <quark/vk/instance/details/instance.hpp>
+#include <quark/vk/instance/details/instance_handle.hpp>
 #include <vector>
 #include <vulkan/vulkan_core.h>
 

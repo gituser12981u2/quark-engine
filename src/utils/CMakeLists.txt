@@ -1,20 +1,11 @@
-add_library(quark_utils STATIC 
-  diagnostic.cpp
-)
+add_library(quark_utils INTERFACE)
 add_library(quark::utils ALIAS quark_utils)
 
-add_subdirectory(sinks)
+add_subdirectory(diagnostics)
 
 target_link_libraries(quark_utils
   INTERFACE
-    quark::utils::sinks
-  PUBLIC 
-    quark::headers
+    quark::utils::diagnostics
     fmt::fmt
     tl::expected
-)
-
-target_include_directories(quark_utils
-  PRIVATE 
-    ${CMAKE_CURRENT_SOURCE_DIR}
 )
