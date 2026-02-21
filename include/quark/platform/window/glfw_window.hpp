@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cstddef>
 #include <quark/platform/window/IWindow.hpp>
 #include <quark/platform/window/interface_cache.hpp>
 #include <quark/utils/raii.hpp>

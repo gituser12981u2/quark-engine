@@ -10,19 +10,17 @@ namespace util {
 
 namespace {
 using SinkList = std::vector<DiagnosticSink>;
-std::shared_ptr<const SinkList> g_sinks;
+std::atomic<std::shared_ptr<const SinkList>> g_sinks;
 } // namespace
 
 void set_diagnostic_sinks(std::span<const DiagnosticSink> sinks) noexcept {
   auto list = std::make_shared<SinkList>(sinks.begin(), sinks.end());
-  std::atomic_store_explicit(&g_sinks,
-                             std::shared_ptr<const SinkList>(std::move(list)),
-                             std::memory_order_release);
+  g_sinks.store(std::shared_ptr<const SinkList>(std::move(list)),
+                std::memory_order_release);
 }
 
 std::shared_ptr<const SinkList> diagnostic_sinks_snapshot() noexcept {
-  return std::atomic_load_explicit(std::addressof(g_sinks),
-                                   std::memory_order_acquire);
+  return g_sinks.load(std::memory_order_acquire);
 }
 
 void report(const DiagnosticEvent &e) noexcept {

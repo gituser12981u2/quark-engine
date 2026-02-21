@@ -1,12 +1,14 @@
+#define GLFW_VULKAN_STATIC
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
-#include <cstddef>
 #include <cstdint>
 #include <new>
 #include <quark/platform/window/IWindow.hpp>
 #include <quark/platform/window/glfw_window.hpp>
 #include <quark/vk/surface_source.hpp>
 #include <stdexcept>
+#include <string>
+#include <string_view>
 #include <vector>
 
 // TODO: make quark::headers more specific
@@ -21,11 +23,36 @@ public:
 
   [[nodiscard]] std::vector<const char *>
   required_instance_extensions() const override {
+    const char *glfw_err = nullptr;
+    int glfw_err_code = glfwGetError(&glfw_err);
+    (void)glfw_err_code;
+
+    if (glfwVulkanSupported() == GLFW_FALSE) {
+      std::string_view detail =
+          (glfw_err != nullptr && glfw_err[0] != '\0')
+              ? std::string_view(glfw_err)
+              : std::string_view(
+                    "GLFW reports Vulkan loader/support unavailable");
+      throw std::runtime_error(std::string("glfwVulkanSupported failed: ") +
+                               std::string(detail));
+    }
+
     uint32_t count = 0;
     const char **exts = glfwGetRequiredInstanceExtensions(&count);
 
     if (exts == nullptr || count == 0) {
-      throw std::runtime_error("glfwGetRequiredInstanceExtensions failed");
+      glfw_err_code = glfwGetError(&glfw_err);
+      (void)glfw_err_code;
+
+      std::string_view detail =
+          (glfw_err != nullptr && glfw_err[0] != '\0')
+              ? std::string_view(glfw_err)
+              : std::string_view(
+                    "no platform Vulkan surface extensions returned");
+
+      throw std::runtime_error(
+          std::string("glfwGetRequiredInstanceExtensions failed: ") +
+          std::string(detail));
     }
 
     return {exts, exts + count};
