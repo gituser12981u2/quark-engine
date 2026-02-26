@@ -1,12 +1,13 @@
 #include <cstdint>
+#include <quark/utils/diagnostic.hpp>
+#include <quark/utils/result.hpp>
 #include <quark/vk/device/details/device.hpp>
 #include <quark/vk/device/details/device_handle.hpp>
 #include <quark/vk/device/details/device_registry.hpp>
 
 namespace quark::vk {
 
-bool DeviceRegistry::matches_(DeviceHandle handle,
-                              const Slot &s) const noexcept {
+bool DeviceRegistry::matches_(DeviceHandle handle, const Slot &s) noexcept {
   return handle.valid() && s.live && s.generation == handle.generation;
 }
 
@@ -26,7 +27,8 @@ void DeviceRegistry::clear() noexcept {
   }
 }
 
-DeviceHandle DeviceRegistry::create(const Device::CreateInfo &ci) {
+util::Result<DeviceHandle>
+DeviceRegistry::create(const Device::CreateInfo &ci) {
   uint32_t idx = 0;
 
   if (!free_.empty()) {
@@ -45,7 +47,7 @@ DeviceHandle DeviceRegistry::create(const Device::CreateInfo &ci) {
     ++s.generation;
   }
 
-  s.device.create(ci);
+  QUARK_TRY_STATUS(s.device.create(ci));
   s.live = true;
 
   return DeviceHandle{.index = idx, .generation = s.generation};

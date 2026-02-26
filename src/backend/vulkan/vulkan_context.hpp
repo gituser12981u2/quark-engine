@@ -33,7 +33,7 @@ private:
   void create_window();
   util::Status create_instance();
   void create_surface();
-  void create_device();
+  util::Status create_device();
   void create_swapchain();
   void create_swapchain_image_views();
   void create_render_pass();
@@ -55,10 +55,13 @@ private:
   VkExtent2D swapchain_extent_{};
   vector<VkImage> swapchain_images_;
   vector<VkImageView> swapchain_image_views_;
+
   VkRenderPass render_pass_{VK_NULL_HANDLE};
+
   vector<VkFramebuffer> framebuffers_;
   VkCommandPool command_pool_{VK_NULL_HANDLE};
   vector<VkCommandBuffer> command_buffers_;
+
   vector<VkSemaphore> render_finished_semaphores_per_image_;
 
   static constexpr uint32_t kMaxFramesInFlight{2};

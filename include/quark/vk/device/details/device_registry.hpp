@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <quark/utils/raii.hpp>
+#include <quark/utils/result.hpp>
 #include <vector>
 
 namespace quark::vk {
@@ -18,7 +19,7 @@ public:
 
   void clear() noexcept;
 
-  [[nodiscard]] DeviceHandle create(const Device::CreateInfo &ci);
+  [[nodiscard]] util::Result<DeviceHandle> create(const Device::CreateInfo &ci);
   void destroy(DeviceHandle handle) noexcept;
 
   [[nodiscard]] bool alive(DeviceHandle handle) const noexcept;
@@ -33,8 +34,8 @@ private:
     bool live = false;
   };
 
-  [[nodiscard]] bool matches_(DeviceHandle handle,
-                              const Slot &s) const noexcept;
+  [[nodiscard]] static bool matches_(DeviceHandle handle,
+                                     const Slot &s) noexcept;
 
   std::vector<Slot> slots_;
   std::vector<uint32_t> free_;

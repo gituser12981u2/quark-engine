@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <quark/utils/raii.hpp>
+#include <quark/utils/result.hpp>
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
@@ -16,12 +17,11 @@ public:
   };
 
   Device() = default;
-  explicit Device(const CreateInfo &ci) { create(ci); }
   ~Device() { destroy(); }
 
   QUARK_MOVE_ONLY(Device);
 
-  void create(const CreateInfo &ci);
+  util::Status create(const CreateInfo &ci);
   void destroy() noexcept;
 
   [[nodiscard]] bool valid() const noexcept {

@@ -3,10 +3,11 @@
 #include <cstring>
 #include <optional>
 #include <quark/vk/device/details/device.hpp>
+#include <quark/vk/diagnostic_prelude.hpp>
 #include <set>
-#include <stdexcept>
 #include <vector>
 #include <vulkan/vulkan.h>
+#include <vulkan/vulkan_core.h>
 
 using std::vector;
 
@@ -26,33 +27,75 @@ struct SwapchainSupportDetails {
   vector<VkPresentModeKHR> present_modes;
 };
 
-auto has_device_extension(VkPhysicalDevice physical_device,
-                          const char *extension_name) -> bool {
-  uint32_t extension_count{0};
-  vkEnumerateDeviceExtensionProperties(physical_device, nullptr,
-                                       &extension_count, nullptr);
+[[nodiscard]] util::Result<vector<VkExtensionProperties>>
+enumerate_device_extensions(VkPhysicalDevice physical_device) {
+  QUARK_ENSURE(physical_device != VK_NULL_HANDLE,
+               QUARK_ERR(util::Errc::InvalidArg, "physical_device is null"));
 
-  vector<VkExtensionProperties> extensions(extension_count);
-  vkEnumerateDeviceExtensionProperties(physical_device, nullptr,
-                                       &extension_count, extensions.data());
+  while (true) {
+    uint32_t count = 0;
+    QUARK_VK_TRY(vkEnumerateDeviceExtensionProperties(
+        physical_device, /*pLayerName=*/nullptr, &count,
+        /*pProperties=*/nullptr));
 
-  return std::ranges::any_of(
-      extensions, [extension_name](const VkExtensionProperties &extension) {
-        return std::strcmp(extension.extensionName, extension_name) == 0;
-      });
+    vector<VkExtensionProperties> props(count);
+
+    uint32_t written = count;
+    const VkResult r = vkEnumerateDeviceExtensionProperties(
+        physical_device, nullptr, &written, props.data());
+
+    if (r == VK_SUCCESS) {
+      props.resize(written);
+      return props;
+    }
+
+    if (r != VK_INCOMPLETE) {
+      return util::unexpected(
+          vk_error(r, "vkEnumerateDeviceExtensionProperties(data)",
+                   std::source_location::current()));
+    }
+  }
 }
 
-auto has_required_extensions(VkPhysicalDevice physical_device,
-                             const vector<const char *> &required_extensions)
-    -> bool {
-  return std::ranges::all_of(
-      required_extensions, [physical_device](const char *extension_name) {
-        return has_device_extension(physical_device, extension_name);
-      });
+[[nodiscard]] bool
+has_device_extension_props(const vector<VkExtensionProperties> &props,
+                           const char *extension_name) noexcept {
+  if (extension_name == nullptr || extension_name[0] == '\0') {
+    return false;
+  }
+
+  for (const auto &p : props) {
+    if (std::strcmp(p.extensionName, extension_name) == 0) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
-auto find_graphics_queue_family(VkPhysicalDevice physical_device)
-    -> std::optional<uint32_t> {
+[[nodiscard]] util::Result<bool>
+has_required_extensions(VkPhysicalDevice physical_device,
+                        const vector<const char *> &required_extensions) {
+  vector<VkExtensionProperties> props;
+  QUARK_TRY_ASSIGN(props, enumerate_device_extensions(physical_device));
+
+  for (const char *name : required_extensions) {
+    QUARK_ENSURE(name != nullptr, QUARK_ERR(util::Errc::InvalidArg,
+                                            "required extension name is null"));
+    QUARK_ENSURE(
+        name[0] != '\0',
+        QUARK_ERR(util::Errc::InvalidArg, "required extension name is empty"));
+
+    if (!has_device_extension_props(props, name)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+[[nodiscard]] std::optional<uint32_t>
+find_graphics_queue_family(VkPhysicalDevice physical_device) {
   uint32_t queue_family_count{0};
   vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_family_count,
                                            nullptr);
@@ -70,8 +113,9 @@ auto find_graphics_queue_family(VkPhysicalDevice physical_device)
   return std::nullopt;
 }
 
-auto query_swapchain_support(VkPhysicalDevice physical_device,
-                             VkSurfaceKHR surface) -> SwapchainSupportDetails {
+[[nodiscard]] SwapchainSupportDetails
+query_swapchain_support(VkPhysicalDevice physical_device,
+                        VkSurfaceKHR surface) {
   SwapchainSupportDetails details;
 
   vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, surface,
@@ -99,17 +143,26 @@ auto query_swapchain_support(VkPhysicalDevice physical_device,
   return details;
 }
 
-auto pick_physical_device(VkInstance instance, VkSurfaceKHR surface,
-                          const vector<const char *> &required_extensions)
-    -> std::optional<DeviceSelection> {
+[[nodiscard]] util::Result<DeviceSelection>
+pick_physical_device(VkInstance instance, VkSurfaceKHR surface,
+                     const vector<const char *> &required_extensions) {
+
+  // TODO: use instance valid instead of manual check
+  QUARK_ENSURE(instance != VK_NULL_HANDLE,
+               QUARK_ERR(util::Errc::InvalidArg, "instance is null"));
+  QUARK_ENSURE(surface != VK_NULL_HANDLE,
+               QUARK_ERR(util::Errc::InvalidArg, "surface is null"));
+
   uint32_t device_count{0};
-  vkEnumeratePhysicalDevices(instance, &device_count, nullptr);
-  if (device_count == 0) {
-    return std::nullopt;
-  }
+  QUARK_VK_TRY(vkEnumeratePhysicalDevices(instance, &device_count,
+                                          /*pPhysicalDevices=*/nullptr));
+
+  QUARK_ENSURE(device_count > 0, QUARK_ERR(util::Errc::Unsupported,
+                                           "No Vulkan physical devices found"));
 
   vector<VkPhysicalDevice> devices(device_count);
-  vkEnumeratePhysicalDevices(instance, &device_count, devices.data());
+  QUARK_VK_TRY(
+      vkEnumeratePhysicalDevices(instance, &device_count, devices.data()));
 
   std::optional<DeviceSelection> fallback;
 
@@ -139,7 +192,11 @@ auto pick_physical_device(VkInstance instance, VkSurfaceKHR surface,
       continue;
     }
 
-    if (!has_required_extensions(physical_device, required_extensions)) {
+    bool ok_exts = false;
+    QUARK_TRY_ASSIGN(
+        ok_exts, has_required_extensions(physical_device, required_extensions));
+
+    if (!ok_exts) {
       continue;
     }
 
@@ -168,32 +225,56 @@ auto pick_physical_device(VkInstance instance, VkSurfaceKHR surface,
     }
   }
 
-  return fallback;
+  QUARK_ENSURE(fallback.has_value(),
+               QUARK_ERR(util::Errc::Unsupported,
+                         "No suitable Vulkan physical device found"));
+
+  return *fallback;
+}
+
+[[nodiscard]] util::Result<vector<const char *>>
+build_device_extensions(VkPhysicalDevice physical_device,
+                        const vector<const char *> &required) {
+  vector<VkExtensionProperties> props;
+  QUARK_TRY_ASSIGN(props, enumerate_device_extensions(physical_device));
+
+  vector<const char *> enabled = required;
+
+#if defined(__APPLE__)
+  // MoltenVK usually needs portability subset;
+  constexpr const char *kPortabilitySubset = "VK_KHR_portability_subset";
+  if (has_device_extension_props(props, kPortabilitySubset) &&
+      !std::ranges::contains(enabled, kPortabilitySubset)) {
+    enabled.push_back(kPortabilitySubset);
+    QUARK_LOG_INFO("portability subset: enabled");
+  }
+#endif
+
+  return enabled;
 }
 
 } // namespace
 
-void Device::create(const Device::CreateInfo &ci) {
+util::Status Device::create(const Device::CreateInfo &ci) {
   destroy();
 
-  if (ci.instance == VK_NULL_HANDLE) {
-    throw std::runtime_error("Cannot create Vulkan device with null instance");
-  }
-  if (ci.surface == VK_NULL_HANDLE) {
-    throw std::runtime_error("Cannot create Vulkan device with null surface");
-  }
+  // TODO: use respective .valid()s
+  QUARK_ENSURE(ci.instance != VK_NULL_HANDLE,
+               QUARK_ERR(util::Errc::InvalidArg,
+                         "Cannot create Vulkan device with null instance"));
+  QUARK_ENSURE(ci.surface != VK_NULL_HANDLE,
+               QUARK_ERR(util::Errc::InvalidArg,
+                         "Cannot create Vulkan device with null surface"));
 
-  const auto selection =
-      pick_physical_device(ci.instance, ci.surface, ci.required_extensions);
-  if (!selection.has_value()) {
-    throw std::runtime_error("No suitable Vulkan physical device found");
-  }
+  DeviceSelection selection{};
+  QUARK_TRY_ASSIGN(selection, pick_physical_device(ci.instance, ci.surface,
+                                                   ci.required_extensions));
 
-  physical_device_ = selection->physical_device;
-  graphics_queue_family_index_ = selection->graphics_queue_family_index;
-  present_queue_family_index_ = selection->present_queue_family_index;
+  physical_device_ = selection.physical_device;
+  graphics_queue_family_index_ = selection.graphics_queue_family_index;
+  present_queue_family_index_ = selection.present_queue_family_index;
 
-  constexpr auto queue_priority{1.0F};
+  constexpr float queue_priority{1.0F};
 
   const std::set<uint32_t> unique_queue_families{graphics_queue_family_index_,
                                                  present_queue_family_index_};
@@ -209,14 +290,10 @@ void Device::create(const Device::CreateInfo &ci) {
     queue_create_infos.push_back(queue_create_info);
   }
 
-  vector<const char *> enabled_device_extensions = ci.required_extensions;
-  constexpr const char *portability_subset_extension =
-      "VK_KHR_portability_subset";
-  if (has_device_extension(physical_device_, portability_subset_extension) &&
-      !std::ranges::contains(enabled_device_extensions,
-                             portability_subset_extension)) {
-    enabled_device_extensions.push_back(portability_subset_extension);
-  }
+  vector<const char *> enabled_device_extensions;
+  QUARK_TRY_ASSIGN(
+      enabled_device_extensions,
+      build_device_extensions(physical_device_, ci.required_extensions));
 
   VkDeviceCreateInfo create_info{};
   create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -225,17 +302,19 @@ void Device::create(const Device::CreateInfo &ci) {
       static_cast<uint32_t>(queue_create_infos.size());
   create_info.enabledExtensionCount =
       static_cast<uint32_t>(enabled_device_extensions.size());
-  create_info.ppEnabledExtensionNames = enabled_device_extensions.data();
+  create_info.ppEnabledExtensionNames = enabled_device_extensions.empty()
+                                            ? nullptr
+                                            : enabled_device_extensions.data();
 
-  const VkResult create_result =
-      vkCreateDevice(physical_device_, &create_info, nullptr, &device_);
-  if (create_result != VK_SUCCESS) {
-    destroy();
-    throw std::runtime_error("vkCreateDevice failed");
-  }
+  VkDevice out = VK_NULL_HANDLE;
+  QUARK_VK_TRY(vkCreateDevice(physical_device_, &create_info,
+                              /*pAllocator=*/nullptr, &out));
+  device_ = out;
 
   vkGetDeviceQueue(device_, graphics_queue_family_index_, 0, &graphics_queue_);
   vkGetDeviceQueue(device_, present_queue_family_index_, 0, &present_queue_);
+
+  return {};
 }
 
 void Device::destroy() noexcept {

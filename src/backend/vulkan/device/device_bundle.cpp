@@ -1,3 +1,5 @@
+#include <quark/utils/diagnostic.hpp>
+#include <quark/utils/result.hpp>
 #include <quark/vk/device/details/device.hpp>
 #include <quark/vk/device/details/device_handle.hpp>
 #include <quark/vk/device/details/device_registry.hpp>
@@ -5,11 +7,10 @@
 
 namespace quark::vk {
 
-DeviceBundle::DeviceBundle(const Device::CreateInfo &ci) { create(ci); }
-
-void DeviceBundle::create(const Device::CreateInfo &ci) {
+util::Status DeviceBundle::create(const Device::CreateInfo &ci) {
   destroy();
-  handle_ = registry_.create(ci);
+  QUARK_TRY_ASSIGN(handle_, registry_.create(ci));
+  return {};
 }
 
 void DeviceBundle::destroy() noexcept {
