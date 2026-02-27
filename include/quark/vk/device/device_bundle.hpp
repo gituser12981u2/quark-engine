@@ -1,27 +1,41 @@
 #pragma once
 
-#include "quark/utils/result.hpp"
 #include <quark/utils/raii.hpp>
-#include <quark/vk/device/details/device.hpp>
-#include <quark/vk/device/details/device_handle.hpp>
+#include <quark/utils/result.hpp>
 #include <quark/vk/device/details/device_registry.hpp>
 
 namespace quark::vk {
 
+namespace details {
+
+class Device;
+struct DeviceHandle;
+
+} // namespace details
+
+struct DeviceView;
+
 class DeviceBundle final {
 public:
+  struct CreateInfo {
+    details::Device::CreateInfo device{};
+  };
+
   DeviceBundle() = default;
-  explicit DeviceBundle(const Device::CreateInfo &ci);
+  explicit DeviceBundle(const DeviceBundle::CreateInfo &ci);
   ~DeviceBundle() { destroy(); }
 
   QUARK_MOVE_ONLY(DeviceBundle);
 
-  util::Status create(const Device::CreateInfo &ci);
+  util::Status create(const DeviceBundle::CreateInfo &ci);
   void destroy() noexcept;
 
-  [[nodiscard]] bool valid() const noexcept { return registry_.alive(handle_); }
+  [[nodiscard]] util::Status validate() const noexcept;
 
-  [[nodiscard]] DeviceHandle handle() const noexcept { return handle_; }
+  [[nodiscard]] details::DeviceHandle handle() const noexcept {
+    return handle_;
+  }
+  [[nodiscard]] DeviceView view() const noexcept;
 
   [[nodiscard]] VkPhysicalDevice vk_physical_device() const noexcept;
   [[nodiscard]] VkDevice vk_device() const noexcept;
@@ -31,8 +45,8 @@ public:
   [[nodiscard]] uint32_t present_queue_family_index() const noexcept;
 
 private:
-  DeviceRegistry registry_;
-  DeviceHandle handle_{};
+  details::DeviceRegistry registry_;
+  details::DeviceHandle handle_{};
 };
 
 } // namespace quark::vk

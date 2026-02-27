@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace quark::vk {
+namespace quark::vk::details {
 
 struct DeviceHandle {
   uint32_t index = 0xFFFF'FFFFU;
@@ -18,4 +18,4 @@ struct DeviceHandle {
   }
 };
 
-} // namespace quark::vk
+} // namespace quark::vk::details

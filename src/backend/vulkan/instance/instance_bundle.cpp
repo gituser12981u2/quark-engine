@@ -8,25 +8,26 @@
 
 namespace quark::vk {
 
-util::Status InstanceBundle::create(const Instance::CreateInfo &ci) {
+util::Status InstanceBundle::create(const CreateInfo &ci) {
   destroy();
 
-  QUARK_TRY_ASSIGN(handle_, registry_.create(ci));
+  QUARK_TRY_ASSIGN(handle_, registry_.create(ci.instance));
   return {};
 }
 
 void InstanceBundle::destroy() noexcept {
   registry_.destroy(handle_);
-  handle_ = InstanceHandle{};
+  handle_ = details::InstanceHandle{};
 }
 
 VkInstance InstanceBundle::vk_instance() const noexcept {
-  const Instance *instance = registry_.get(handle_);
+  const details::Instance *instance = registry_.get(handle_);
   return (instance != nullptr) ? instance->handle() : VK_NULL_HANDLE;
 }
 
-const DebugMessenger *InstanceBundle::debug_messenger() const noexcept {
-  const Instance *instance = registry_.get(handle_);
+const details::DebugMessenger *
+InstanceBundle::debug_messenger() const noexcept {
+  const details::Instance *instance = registry_.get(handle_);
   if (instance == nullptr) {
     return nullptr;
   }

@@ -3,9 +3,9 @@
 #include <cstddef>
 #include <quark/utils/raii.hpp>
 #include <quark/utils/result.hpp>
-#include <vulkan/vulkan.h>
+#include <vulkan/vulkan_core.h>
 
-namespace quark::vk {
+namespace quark::vk::details {
 
 class DebugMessenger final {
 public:
@@ -21,6 +21,7 @@ public:
 
     PFN_vkDebugUtilsMessengerCallbackEXT callback = nullptr;
     void *user_data = nullptr;
+    const VkAllocationCallbacks *allocator = nullptr;
   };
 
   DebugMessenger() = default;
@@ -42,6 +43,7 @@ private:
   VkInstance instance_ = VK_NULL_HANDLE; // non-owning
 
   VkDebugUtilsMessengerEXT messenger_ = VK_NULL_HANDLE;
+  const VkAllocationCallbacks *alloc_ = nullptr;
 };
 
-} // namespace quark::vk
+} // namespace quark::vk::details

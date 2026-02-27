@@ -6,7 +6,7 @@
 #include <quark/vk/instance/details/instance_registry.hpp>
 #include <vulkan/vulkan.h>
 
-namespace quark::vk {
+namespace quark::vk::details {
 
 bool InstanceRegistry::matches_(InstanceHandle handle, const Slot &s) noexcept {
   return handle.valid() && s.live && s.generation == handle.generation;
@@ -95,4 +95,4 @@ const Instance *InstanceRegistry::get(InstanceHandle handle) const noexcept {
   return &slots_[handle.index].instance;
 }
 
-} // namespace quark::vk
+} // namespace quark::vk::details

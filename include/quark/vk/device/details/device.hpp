@@ -6,7 +6,7 @@
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
-namespace quark::vk {
+namespace quark::vk::details {
 
 class Device final {
 public:
@@ -59,4 +59,4 @@ private:
   uint32_t present_queue_family_index_ = 0;
 };
 
-} // namespace quark::vk
+} // namespace quark::vk::details

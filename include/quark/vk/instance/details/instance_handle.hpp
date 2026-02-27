@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace quark::vk {
+namespace quark::vk::details {
 
 /**
  * @brief Opaque handle to a registry-managed InstanceBundle.
@@ -23,4 +23,4 @@ struct InstanceHandle {
   }
 };
 
-} // namespace quark::vk
+} // namespace quark::vk::details
