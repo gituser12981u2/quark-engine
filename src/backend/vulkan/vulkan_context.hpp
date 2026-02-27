@@ -1,5 +1,8 @@
 #pragma once
 
+#include "quark/vk/frame/details/frame_cmd.hpp"
+#include "quark/vk/frame/details/frame_sync.hpp"
+
 #include <array>
 #include <cstdint>
 #include <memory>
@@ -31,19 +34,24 @@ private:
   util::Status init();
 
   void create_window();
+
   util::Status create_instance();
   void create_surface();
   util::Status create_device();
   void create_swapchain();
   void create_swapchain_image_views();
+
+  util::Status create_frame_cmd();
+  util::Status create_frame_sync();
+  util::Status record_command_buffers();
+
   void create_render_pass();
   void create_framebuffers();
-  void create_command_pool();
-  void create_command_buffers();
-  void create_sync_objects();
-  void draw_frame();
+
+  util::Status draw_frame();
+
   void cleanup_swapchain();
-  void recreate_swapchain();
+  util::Status recreate_swapchain();
 
   std::unique_ptr<platform::IWindow> window_;
   InstanceBundle instance_;
@@ -56,17 +64,14 @@ private:
   vector<VkImage> swapchain_images_;
   vector<VkImageView> swapchain_image_views_;
 
-  VkRenderPass render_pass_{VK_NULL_HANDLE};
-
-  vector<VkFramebuffer> framebuffers_;
-  VkCommandPool command_pool_{VK_NULL_HANDLE};
-  vector<VkCommandBuffer> command_buffers_;
-
-  vector<VkSemaphore> render_finished_semaphores_per_image_;
-
   static constexpr uint32_t kMaxFramesInFlight{2};
-  array<VkSemaphore, kMaxFramesInFlight> image_available_semaphores_{};
-  array<VkFence, kMaxFramesInFlight> in_flight_fences_{};
+
+  details::FrameCmd frame_cmd_;
+  details::FrameSync frame_sync_;
+
+  VkRenderPass render_pass_{VK_NULL_HANDLE};
+  vector<VkFramebuffer> framebuffers_;
+
   vector<VkFence> images_in_flight_;
   uint32_t current_frame_{0};
 };

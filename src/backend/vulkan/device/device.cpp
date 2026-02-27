@@ -11,7 +11,7 @@
 
 using std::vector;
 
-namespace quark::vk {
+namespace quark::vk::details {
 
 namespace {
 
@@ -314,7 +314,7 @@ util::Status Device::create(const Device::CreateInfo &ci) {
   vkGetDeviceQueue(device_, graphics_queue_family_index_, 0, &graphics_queue_);
   vkGetDeviceQueue(device_, present_queue_family_index_, 0, &present_queue_);
 
-  return {};
+  QUARK_OK();
 }
 
 void Device::destroy() noexcept {
@@ -330,4 +330,4 @@ void Device::destroy() noexcept {
   present_queue_family_index_ = 0;
 }
 
-} // namespace quark::vk
+} // namespace quark::vk::details

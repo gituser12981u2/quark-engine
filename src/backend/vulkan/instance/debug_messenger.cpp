@@ -3,7 +3,7 @@
 #include <quark/vk/instance/details/debug_messenger.hpp>
 #include <vulkan/vulkan_core.h>
 
-namespace quark::vk {
+namespace quark::vk::details {
 
 namespace {
 
@@ -41,11 +41,11 @@ util::Status DebugMessenger::create(VkInstance instance, const CreateInfo &ci) {
   info.pUserData = ci.user_data;
 
   VkDebugUtilsMessengerEXT out = VK_NULL_HANDLE;
-  QUARK_VK_TRY(create_fn(instance, &info, nullptr, &out));
+  QUARK_VK_TRY(create_fn(instance, &info, alloc_, &out));
   instance_ = instance;
   messenger_ = out;
 
-  return {};
+  QUARK_OK();
 }
 
 void DebugMessenger::destroy() noexcept {
@@ -65,4 +65,4 @@ void DebugMessenger::destroy() noexcept {
   instance_ = VK_NULL_HANDLE;
 }
 
-} // namespace quark::vk
+} // namespace quark::vk::details
