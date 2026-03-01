@@ -72,7 +72,7 @@ private:
   VkRenderPass render_pass_{VK_NULL_HANDLE};
   vector<VkFramebuffer> framebuffers_;
 
-  vector<VkFence> images_in_flight_;
+  vector<uint64_t> images_in_flight_;
   uint32_t current_frame_{0};
 };
 

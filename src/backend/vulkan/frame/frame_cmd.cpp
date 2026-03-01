@@ -1,4 +1,3 @@
-#include "quark/utils/diagnostic.hpp"
 #include <cstdint>
 #include <quark/vk/diagnostic_prelude.hpp>
 #include <quark/vk/frame/details/frame_cmd.hpp>
