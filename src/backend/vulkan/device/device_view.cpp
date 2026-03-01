@@ -11,7 +11,7 @@ util::Status validate(const DeviceView &view) noexcept {
                QUARK_ERR(util::Errc::InvalidState, "VkPhysicalDevice is null"));
   QUARK_ENSURE(view.graphics_queue != VK_NULL_HANDLE,
                QUARK_ERR(util::Errc::InvalidState, "graphics queue is null"));
-  return {};
+  QUARK_OK();
 }
 
 } // namespace quark::vk

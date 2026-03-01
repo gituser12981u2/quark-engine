@@ -1,7 +1,7 @@
 #include "vulkan_context.hpp"
 
 #include "quark/utils/diagnostic.hpp"
-#include "quark/vk/device/device_bundle.hpp"
+#include "quark/vk/device/details/device.hpp"
 #include "quark/vk/frame/details/frame_cmd.hpp"
 #include "quark/vk/frame/details/frame_sync.hpp"
 
@@ -186,7 +186,7 @@ util::Status VulkanContext::init() {
   create_swapchain();
   create_swapchain_image_views();
 
-  images_in_flight_.assign(swapchain_images_.size(), VK_NULL_HANDLE);
+  images_in_flight_.assign(swapchain_images_.size(), 0);
 
   QUARK_TRY_STATUS(create_frame_cmd());
   QUARK_TRY_STATUS(create_frame_sync());
@@ -290,6 +290,8 @@ util::Status VulkanContext::create_device() {
   DeviceBundle::CreateInfo ci{};
   ci.device.instance = instance_.vk_instance();
   ci.device.surface = surface_;
+  ci.device.requested_features = static_cast<details::Device::FeatureFlags>(
+      details::Device::Features::TimelineSemaphore);
   ci.device.required_extensions = {kSwapchainExtension};
   QUARK_TRY_STATUS(device_.create(ci));
 
@@ -297,7 +299,7 @@ util::Status VulkanContext::create_device() {
   vkGetPhysicalDeviceProperties(device_.vk_physical_device(), &properties);
   QUARK_LOG_INFO("Selected GPU: {}", properties.deviceName);
 
-  return {};
+  QUARK_OK();
 }
 
 void VulkanContext::create_swapchain() {
@@ -494,61 +496,101 @@ util::Status VulkanContext::record_command_buffers() {
 }
 
 util::Status VulkanContext::draw_frame() {
-  VkFence fence = frame_sync_.in_flight(current_frame_);
-  QUARK_VK_TRY(
-      vkWaitForFences(device_.vk_device(), 1, &fence, VK_TRUE, UINT64_MAX));
+  // Wait until this frame slot is free
+  QUARK_TRY_STATUS(frame_sync_.wait_frame(current_frame_));
 
+  // Acquire image
   uint32_t image_index = 0;
   const VkResult acquire_result =
       vkAcquireNextImageKHR(device_.vk_device(), swapchain_, UINT64_MAX,
                             frame_sync_.image_available(current_frame_),
                             VK_NULL_HANDLE, &image_index);
-
   if (acquire_result == VK_ERROR_OUT_OF_DATE_KHR) {
     QUARK_TRY_STATUS(recreate_swapchain());
     return {};
   }
-
   if (acquire_result != VK_SUCCESS && acquire_result != VK_SUBOPTIMAL_KHR) {
+    // TODO: get rid of this pattern
     throw_if_vk_failed(acquire_result, "vkAcquireNextImageKHR");
   }
 
-  if (images_in_flight_[image_index] != VK_NULL_HANDLE) {
-    QUARK_VK_TRY(vkWaitForFences(device_.vk_device(), 1,
-                                 &images_in_flight_[image_index], VK_TRUE,
-                                 UINT64_MAX));
+  // If this swapchain image is used by an earlier frame, wait for it
+  if (image_index < images_in_flight_.size()) {
+    const uint64_t image_value = images_in_flight_[image_index];
+    if (image_value != 0) {
+      VkSemaphoreWaitInfo wait_info{};
+      wait_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+      wait_info.semaphoreCount = 1;
+      VkSemaphore timeline = frame_sync_.timeline();
+      wait_info.pSemaphores = &timeline;
+      wait_info.pValues = &image_value;
+
+      QUARK_VK_TRY(
+          vkWaitSemaphores(device_.vk_device(), &wait_info, UINT64_MAX));
+    }
   }
-  images_in_flight_[image_index] = frame_sync_.in_flight(current_frame_);
 
-  QUARK_VK_TRY(vkResetFences(device_.vk_device(), 1, &fence));
+  const uint64_t signal_value = frame_sync_.next_signal_value();
 
-  const array<VkSemaphore, 1> wait_semaphores = {
-      frame_sync_.image_available(current_frame_)};
-  const array<VkPipelineStageFlags, 1> wait_stages = {
-      VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-  const array<VkSemaphore, 1> signal_semaphores = {
-      frame_sync_.render_finished(current_frame_)};
+  VkSemaphore wait_bin = frame_sync_.image_available(current_frame_);
+  VkSemaphore signal_bin = frame_sync_.render_finished(current_frame_);
+  VkSemaphore signal_tl = frame_sync_.timeline();
+
+  VkSemaphoreSubmitInfo wait_sem{};
+  wait_sem.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+  wait_sem.semaphore = wait_bin;
+  wait_sem.value = 0;
+  wait_sem.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+  wait_sem.deviceIndex = 0;
+
+  VkSemaphoreSubmitInfo signal_sem_bin{};
+  signal_sem_bin.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+  signal_sem_bin.semaphore = signal_bin;
+  signal_sem_bin.value = 0;
+  signal_sem_bin.stageMask = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT;
+  signal_sem_bin.deviceIndex = 0;
+
+  VkSemaphoreSubmitInfo signal_sem_tl{};
+  signal_sem_tl.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+  signal_sem_tl.semaphore = signal_tl;
+  signal_sem_tl.value = signal_value;
+  signal_sem_tl.stageMask = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT;
+  signal_sem_tl.deviceIndex = 0;
 
   VkCommandBuffer cb = frame_cmd_.cmd(image_index);
 
-  VkSubmitInfo submit_info{};
-  submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-  submit_info.waitSemaphoreCount = 1;
-  submit_info.pWaitSemaphores = wait_semaphores.data();
-  submit_info.pWaitDstStageMask = wait_stages.data();
-  submit_info.commandBufferCount = 1;
-  submit_info.pCommandBuffers = &cb;
-  submit_info.signalSemaphoreCount = 1;
-  submit_info.pSignalSemaphores = signal_semaphores.data();
+  VkCommandBufferSubmitInfo cb_info{};
+  cb_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
+  cb_info.commandBuffer = cb;
+  cb_info.deviceMask = 0;
 
-  QUARK_VK_TRY(vkQueueSubmit(device_.graphics_queue(), 1, &submit_info,
-                             frame_sync_.in_flight(current_frame_)));
+  std::array<VkSemaphoreSubmitInfo, 2> signals = {signal_sem_bin,
+                                                  signal_sem_tl};
+
+  VkSubmitInfo2 submit_info{};
+  submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
+  submit_info.waitSemaphoreInfoCount = 1;
+  submit_info.pWaitSemaphoreInfos = &wait_sem;
+  submit_info.commandBufferInfoCount = 1;
+  submit_info.pCommandBufferInfos = &cb_info;
+  submit_info.signalSemaphoreInfoCount = static_cast<uint32_t>(signals.size());
+  submit_info.pSignalSemaphoreInfos = signals.data();
+
+  QUARK_VK_TRY(vkQueueSubmit2(device_.graphics_queue(), /*submitCount=*/1,
+                              &submit_info,
+                              /*fence=*/VK_NULL_HANDLE));
+
+  frame_sync_.mark_submitted(current_frame_, signal_value);
+  images_in_flight_[image_index] = signal_value;
 
   const array<VkSwapchainKHR, 1> swapchains = {swapchain_};
+  const array<VkSemaphore, 1> present_wait = {
+      frame_sync_.render_finished(current_frame_)};
+
   VkPresentInfoKHR present_info{};
   present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
   present_info.waitSemaphoreCount = 1;
-  present_info.pWaitSemaphores = signal_semaphores.data();
+  present_info.pWaitSemaphores = present_wait.data();
   present_info.swapchainCount = 1;
   present_info.pSwapchains = swapchains.data();
   present_info.pImageIndices = &image_index;
@@ -560,12 +602,12 @@ util::Status VulkanContext::draw_frame() {
       present_result == VK_SUBOPTIMAL_KHR) {
     QUARK_TRY_STATUS(recreate_swapchain());
   } else {
+    // TODO: remove pattern
     throw_if_vk_failed(present_result, "vkQueuePresentKHR");
   }
 
   current_frame_ = (current_frame_ + 1U) % kMaxFramesInFlight;
-
-  return {};
+  QUARK_OK();
 }
 
 void VulkanContext::cleanup_swapchain() {
@@ -612,7 +654,7 @@ util::Status VulkanContext::recreate_swapchain() {
   create_swapchain();
   create_swapchain_image_views();
 
-  images_in_flight_.assign(swapchain_images_.size(), VK_NULL_HANDLE);
+  images_in_flight_.assign(swapchain_images_.size(), 0);
 
   create_render_pass();
   create_framebuffers();

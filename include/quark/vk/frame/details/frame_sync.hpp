@@ -16,8 +16,9 @@ public:
     uint32_t frames_in_flight = 0;
     const VkAllocationCallbacks *allocator = nullptr;
 
-    // Fence starts signaled
-    bool fence_signaled_on_create = true;
+    // If true, frames start idle
+    // If false, one can pre-seed values
+    bool frames_idle_on_create = true;
   };
 
   FrameSync() = default;
@@ -46,27 +47,56 @@ public:
                                     : VK_NULL_HANDLE;
   }
 
-  [[nodiscard]] VkFence in_flight(uint32_t frame) const noexcept {
-    return (frame < frames_.size()) ? frames_[frame].in_flight : VK_NULL_HANDLE;
+  [[nodiscard]] VkSemaphore timeline() const noexcept { return timeline_; }
+
+  /**
+   * Last submitted timeline value for this frame slot.
+   *
+   * 0 -> nothing submitted yet.
+   */
+  [[nodiscard]] uint64_t in_flight_value(uint32_t frame) const noexcept {
+    return (frame < frames_.size()) ? frames_[frame].in_flight_value : 0;
+  }
+
+  /**
+   * Wait until GPU has completed work for the given frame slot.
+   *
+   * No - op if in_flight_value (frame) == 0.
+   */
+  [[nodiscard]] util::Status wait_frame(uint32_t frame,
+                                        uint64_t timeout_ns = UINT64_MAX) const;
+
+  /// Obtain a unique timeline value to signal on the next submit.
+  [[nodiscard]] uint64_t next_signal_value() noexcept { return next_value_++; }
+
+  /// After vkQueueSubmit, record the value that represents frame slot is in
+  /// flight.
+  void mark_submitted(uint32_t frame, uint64_t value) noexcept {
+    if (frame < frames_.size()) {
+      frames_[frame].in_flight_value = value;
+    }
   }
 
 private:
   struct PerFrame {
     VkSemaphore image_available = VK_NULL_HANDLE;
-
-    // TODO: remove
     VkSemaphore render_finished = VK_NULL_HANDLE;
-
-    VkFence in_flight = VK_NULL_HANDLE;
+    uint64_t in_flight_value = 0;
   };
 
   util::Status create_per_frame_(uint32_t count);
   void destroy_per_frame_() noexcept;
 
+  util::Status create_timeline_();
+  void destroy_timeline_() noexcept;
+
   VkDevice vk_device_ = VK_NULL_HANDLE; // non-owning
   const VkAllocationCallbacks *alloc_ = nullptr;
 
-  bool fence_signaled_on_create_ = true;
+  VkSemaphore timeline_ = VK_NULL_HANDLE;
+  uint64_t next_value_ = 1;
+
+  bool frames_idle_on_create_ = true;
   std::vector<PerFrame> frames_;
 };
 
