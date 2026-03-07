@@ -4,9 +4,11 @@
 #include "quark/vk/device/details/device.hpp"
 #include "quark/vk/frame/details/frame_cmd.hpp"
 #include "quark/vk/frame/details/frame_sync.hpp"
+#include "quark/vk/sync/gpu_timeline.hpp"
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <format>
@@ -180,9 +182,11 @@ util::Status VulkanContext::init() {
   create_window();
 
   QUARK_TRY_STATUS(create_instance());
-
   create_surface();
+
   QUARK_TRY_STATUS(create_device());
+  QUARK_TRY_STATUS(create_gpu_timeline());
+
   create_swapchain();
   create_swapchain_image_views();
 
@@ -207,8 +211,9 @@ VulkanContext::~VulkanContext() {
 
   frame_sync_.destroy();
   frame_cmd_.destroy();
-  cleanup_swapchain();
+  gpu_timeline_.destroy();
 
+  cleanup_swapchain();
   device_.destroy();
 
   if (surface_ != VK_NULL_HANDLE) {
@@ -299,6 +304,13 @@ util::Status VulkanContext::create_device() {
   vkGetPhysicalDeviceProperties(device_.vk_physical_device(), &properties);
   QUARK_LOG_INFO("Selected GPU: {}", properties.deviceName);
 
+  QUARK_OK();
+}
+
+util::Status VulkanContext::create_gpu_timeline() {
+  GpuTimeline::CreateInfo ci{};
+  ci.device = device_.view();
+  QUARK_TRY_STATUS(gpu_timeline_.create(ci));
   QUARK_OK();
 }
 
@@ -496,8 +508,13 @@ util::Status VulkanContext::record_command_buffers() {
 }
 
 util::Status VulkanContext::draw_frame() {
+  std::size_t drained = 0;
+  QUARK_TRY_ASSIGN(drained, retirement_queue_.drain());
+  (void)drained;
+
   // Wait until this frame slot is free
-  QUARK_TRY_STATUS(frame_sync_.wait_frame(current_frame_));
+  const uint64_t frame_value = frame_sync_.in_flight_value(current_frame_);
+  QUARK_TRY_STATUS(gpu_timeline_.wait(frame_value));
 
   // Acquire image
   uint32_t image_index = 0;
@@ -507,7 +524,7 @@ util::Status VulkanContext::draw_frame() {
                             VK_NULL_HANDLE, &image_index);
   if (acquire_result == VK_ERROR_OUT_OF_DATE_KHR) {
     QUARK_TRY_STATUS(recreate_swapchain());
-    return {};
+    QUARK_OK();
   }
   if (acquire_result != VK_SUCCESS && acquire_result != VK_SUBOPTIMAL_KHR) {
     // TODO: get rid of this pattern
@@ -517,24 +534,14 @@ util::Status VulkanContext::draw_frame() {
   // If this swapchain image is used by an earlier frame, wait for it
   if (image_index < images_in_flight_.size()) {
     const uint64_t image_value = images_in_flight_[image_index];
-    if (image_value != 0) {
-      VkSemaphoreWaitInfo wait_info{};
-      wait_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
-      wait_info.semaphoreCount = 1;
-      VkSemaphore timeline = frame_sync_.timeline();
-      wait_info.pSemaphores = &timeline;
-      wait_info.pValues = &image_value;
-
-      QUARK_VK_TRY(
-          vkWaitSemaphores(device_.vk_device(), &wait_info, UINT64_MAX));
-    }
+    QUARK_TRY_STATUS(gpu_timeline_.wait(image_value));
   }
 
-  const uint64_t signal_value = frame_sync_.next_signal_value();
+  const uint64_t signal_value = gpu_timeline_.next_signal_value();
 
   VkSemaphore wait_bin = frame_sync_.image_available(current_frame_);
   VkSemaphore signal_bin = frame_sync_.render_finished(current_frame_);
-  VkSemaphore signal_tl = frame_sync_.timeline();
+  VkSemaphore signal_tl = gpu_timeline_.semaphore();
 
   VkSemaphoreSubmitInfo wait_sem{};
   wait_sem.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;

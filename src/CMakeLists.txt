@@ -29,6 +29,7 @@ target_link_libraries(quark_headers_vk
 )
 
 add_subdirectory(backend)
+add_subdirectory(engine)
 add_subdirectory(platform)
 add_subdirectory(utils)
 
@@ -39,6 +40,7 @@ set_target_properties(quark_app PROPERTIES
 
 target_link_libraries(quark_app PRIVATE 
     quark::backend
+    quark::engine
     quark::platform
     quark::utils
 )
