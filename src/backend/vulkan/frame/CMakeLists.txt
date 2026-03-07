@@ -1,6 +1,8 @@
 add_library(quark_backend_vulkan_frame STATIC
   frame_cmd.cpp
   frame_sync.cpp
+  frame_registry.cpp 
+  frame_bundle.cpp
 )
 add_library(quark::backend::vulkan::frame ALIAS quark_backend_vulkan_frame)
 

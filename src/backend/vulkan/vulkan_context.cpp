@@ -1,10 +1,7 @@
 #include "vulkan_context.hpp"
 
-#include "quark/utils/diagnostic.hpp"
-#include "quark/vk/device/details/device.hpp"
-#include "quark/vk/frame/details/frame_cmd.hpp"
-#include "quark/vk/frame/details/frame_sync.hpp"
-#include "quark/vk/sync/gpu_timeline.hpp"
+// TODO: move test to testing system when possible
+#include "quark/engine/retire/retirement_queue.hpp"
 
 #include <algorithm>
 #include <array>
@@ -14,19 +11,73 @@
 #include <format>
 #include <limits>
 #include <memory>
+#include <new>
 #include <quark/platform/window/glfw_window.hpp>
 #include <quark/platform/window/interface_query.hpp>
 #include <quark/vk/diagnostic_prelude.hpp>
 #include <quark/vk/instance/instance_bundle.hpp>
 #include <quark/vk/surface_source.hpp>
+#include <quark/vk/sync/gpu_timeline.hpp>
 #include <stdexcept>
 #include <string_view>
 #include <vector>
-#include <vulkan/vulkan.h>
 #include <vulkan/vulkan_core.h>
 
 using std::array;
 using std::vector;
+
+// TODO: move test to testing system when possible
+namespace {
+
+struct RetireTestPayload {
+  uint64_t id = 0;
+  uint64_t retire_at = 0;
+};
+
+void retire_test_run(void *ctx) noexcept {
+  auto *payload = static_cast<RetireTestPayload *>(ctx);
+  if (payload == nullptr) {
+    return;
+  }
+
+  QUARK_LOG_INFO_MOD("retire.test", "drained test payload id={} retire_at={}",
+                     payload->id, payload->retire_at);
+}
+
+void retire_test_cleanup(void *ctx) noexcept {
+  auto *payload = static_cast<RetireTestPayload *>(ctx);
+  delete payload;
+}
+
+util::Status enqueue_retire_test(quark::vk::RetirementQueue &queue,
+                                 uint64_t retire_at, uint64_t id) {
+  auto *payload = new (std::nothrow) RetireTestPayload{
+      .id = id,
+      .retire_at = retire_at,
+  };
+
+  QUARK_ENSURE(payload != nullptr,
+               QUARK_ERR(util::Errc::OutOfMemory,
+                         "failed to allocate RetireTestPayload"));
+
+  quark::vk::RetirementQueue::Task task{};
+  task.fn = &retire_test_run;
+  task.cleanup = &retire_test_cleanup;
+  task.ctx = payload;
+
+  QUARK_LOG_INFO_MOD("retire.test", "enqueue test payload id={} retire_at={}",
+                     id, retire_at);
+
+  auto res = queue.enqueue(retire_at, task);
+  if (!res) {
+    retire_test_cleanup(payload);
+    return util::unexpected(std::move(res.error()));
+  }
+
+  QUARK_OK();
+}
+
+} // namespace
 
 namespace {
 
@@ -186,14 +237,14 @@ util::Status VulkanContext::init() {
 
   QUARK_TRY_STATUS(create_device());
   QUARK_TRY_STATUS(create_gpu_timeline());
+  QUARK_TRY_STATUS(create_retirement_queue());
 
   create_swapchain();
   create_swapchain_image_views();
 
   images_in_flight_.assign(swapchain_images_.size(), 0);
 
-  QUARK_TRY_STATUS(create_frame_cmd());
-  QUARK_TRY_STATUS(create_frame_sync());
+  QUARK_TRY_STATUS(create_frame());
 
   create_render_pass();
   create_framebuffers();
@@ -209,8 +260,8 @@ VulkanContext::~VulkanContext() {
     vkDeviceWaitIdle(device);
   }
 
-  frame_sync_.destroy();
-  frame_cmd_.destroy();
+  frame_.destroy();
+  retirement_queue_.destroy();
   gpu_timeline_.destroy();
 
   cleanup_swapchain();
@@ -396,20 +447,23 @@ void VulkanContext::create_swapchain_image_views() {
   }
 }
 
-util::Status VulkanContext::create_frame_cmd() {
-  details::FrameCmd::CreateInfo ci{};
+util::Status VulkanContext::create_frame() {
+  FrameBundle::CreateInfo ci{};
   ci.device = device_.view();
-  ci.buffer_count = static_cast<uint32_t>(swapchain_images_.size());
-  QUARK_TRY_STATUS(frame_cmd_.create(ci));
-  return {};
+  ci.retire_queue = &retirement_queue_;
+  ci.frames_in_flight = kMaxFramesInFlight;
+  ci.cmd_buffer_count = static_cast<uint32_t>(swapchain_images_.size());
+  ci.cmd_pool_flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+  QUARK_TRY_STATUS(frame_.create(ci));
+  QUARK_OK();
 }
 
-util::Status VulkanContext::create_frame_sync() {
-  details::FrameSync::CreateInfo ci{};
-  ci.device = device_.view();
-  ci.frames_in_flight = kMaxFramesInFlight;
-  QUARK_TRY_STATUS(frame_sync_.create(ci));
-  return {};
+util::Status VulkanContext::create_retirement_queue() {
+  RetirementQueue::CreateInfo ci{};
+  ci.timeline = &gpu_timeline_;
+  ci.reserve = 256; // TODO: tune later
+  QUARK_TRY_STATUS(retirement_queue_.create(ci));
+  QUARK_OK();
 }
 
 void VulkanContext::create_render_pass() {
@@ -476,8 +530,8 @@ void VulkanContext::create_framebuffers() {
 }
 
 util::Status VulkanContext::record_command_buffers() {
-  for (auto i{0U}; i < frame_cmd_.count(); ++i) {
-    VkCommandBuffer cb = frame_cmd_.cmd(i);
+  for (auto i{0U}; i < frame_.cmd()->count(); ++i) {
+    VkCommandBuffer cb = frame_.cmd()->cmd(i);
 
     QUARK_VK_TRY(vkResetCommandBuffer(cb, /*flags=*/0));
 
@@ -512,23 +566,23 @@ util::Status VulkanContext::draw_frame() {
   QUARK_TRY_ASSIGN(drained, retirement_queue_.drain());
   (void)drained;
 
+  auto view = frame_.view();
+
   // Wait until this frame slot is free
-  const uint64_t frame_value = frame_sync_.in_flight_value(current_frame_);
+  const uint64_t frame_value = view.sync->in_flight_value(current_frame_);
   QUARK_TRY_STATUS(gpu_timeline_.wait(frame_value));
 
   // Acquire image
   uint32_t image_index = 0;
-  const VkResult acquire_result =
-      vkAcquireNextImageKHR(device_.vk_device(), swapchain_, UINT64_MAX,
-                            frame_sync_.image_available(current_frame_),
-                            VK_NULL_HANDLE, &image_index);
+  const VkResult acquire_result = vkAcquireNextImageKHR(
+      device_.vk_device(), swapchain_, UINT64_MAX,
+      view.sync->image_available(current_frame_), VK_NULL_HANDLE, &image_index);
   if (acquire_result == VK_ERROR_OUT_OF_DATE_KHR) {
     QUARK_TRY_STATUS(recreate_swapchain());
     QUARK_OK();
   }
   if (acquire_result != VK_SUCCESS && acquire_result != VK_SUBOPTIMAL_KHR) {
-    // TODO: get rid of this pattern
-    throw_if_vk_failed(acquire_result, "vkAcquireNextImageKHR");
+    QUARK_FAIL(::quark::vk::vk_error(acquire_result, "vkAcquireNextImageKHR"));
   }
 
   // If this swapchain image is used by an earlier frame, wait for it
@@ -539,8 +593,8 @@ util::Status VulkanContext::draw_frame() {
 
   const uint64_t signal_value = gpu_timeline_.next_signal_value();
 
-  VkSemaphore wait_bin = frame_sync_.image_available(current_frame_);
-  VkSemaphore signal_bin = frame_sync_.render_finished(current_frame_);
+  VkSemaphore wait_bin = view.sync->image_available(current_frame_);
+  VkSemaphore signal_bin = view.sync->render_finished(current_frame_);
   VkSemaphore signal_tl = gpu_timeline_.semaphore();
 
   VkSemaphoreSubmitInfo wait_sem{};
@@ -564,7 +618,7 @@ util::Status VulkanContext::draw_frame() {
   signal_sem_tl.stageMask = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT;
   signal_sem_tl.deviceIndex = 0;
 
-  VkCommandBuffer cb = frame_cmd_.cmd(image_index);
+  VkCommandBuffer cb = view.cmd->cmd(image_index);
 
   VkCommandBufferSubmitInfo cb_info{};
   cb_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
@@ -587,12 +641,18 @@ util::Status VulkanContext::draw_frame() {
                               &submit_info,
                               /*fence=*/VK_NULL_HANDLE));
 
-  frame_sync_.mark_submitted(current_frame_, signal_value);
+  // REMOVE TEST
+  // static uint64_t retire_test_id = 1;
+  // QUARK_TRY_STATUS(
+  //     enqueue_retire_test(retirement_queue_, signal_value,
+  //     retire_test_id++));
+
+  view.sync->mark_submitted(current_frame_, signal_value);
   images_in_flight_[image_index] = signal_value;
 
   const array<VkSwapchainKHR, 1> swapchains = {swapchain_};
   const array<VkSemaphore, 1> present_wait = {
-      frame_sync_.render_finished(current_frame_)};
+      view.sync->render_finished(current_frame_)};
 
   VkPresentInfoKHR present_info{};
   present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -608,9 +668,8 @@ util::Status VulkanContext::draw_frame() {
   if (present_result == VK_ERROR_OUT_OF_DATE_KHR ||
       present_result == VK_SUBOPTIMAL_KHR) {
     QUARK_TRY_STATUS(recreate_swapchain());
-  } else {
-    // TODO: remove pattern
-    throw_if_vk_failed(present_result, "vkQueuePresentKHR");
+  } else if (present_result != VK_SUCCESS) {
+    QUARK_FAIL(::quark::vk::vk_error(present_result, "vkQueuePresentKHR"));
   }
 
   current_frame_ = (current_frame_ + 1U) % kMaxFramesInFlight;
@@ -655,8 +714,6 @@ util::Status VulkanContext::recreate_swapchain() {
 
   vkDeviceWaitIdle(device_.vk_device());
 
-  QUARK_TRY_STATUS(frame_cmd_.resize(0));
-
   cleanup_swapchain();
   create_swapchain();
   create_swapchain_image_views();
@@ -666,11 +723,11 @@ util::Status VulkanContext::recreate_swapchain() {
   create_render_pass();
   create_framebuffers();
 
-  QUARK_TRY_STATUS(
-      frame_cmd_.resize(static_cast<uint32_t>(swapchain_images_.size())));
+  QUARK_TRY_STATUS(frame_.view().sync->resize(
+      static_cast<uint32_t>(swapchain_images_.size())));
   QUARK_TRY_STATUS(record_command_buffers());
 
-  return {};
+  QUARK_OK();
 }
 
 } // namespace quark::vk

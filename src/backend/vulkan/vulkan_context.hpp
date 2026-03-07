@@ -1,17 +1,15 @@
 #pragma once
 
-#include "quark/engine/retire/retirement_queue.hpp"
-#include "quark/vk/frame/details/frame_cmd.hpp"
-#include "quark/vk/frame/details/frame_sync.hpp"
-#include "quark/vk/sync/gpu_timeline.hpp"
-
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <quark/engine/retire/retirement_queue.hpp>
 #include <quark/platform/window/IWindow.hpp>
 #include <quark/utils/result.hpp>
 #include <quark/vk/device/device_bundle.hpp>
+#include <quark/vk/frame/frame_bundle.hpp>
 #include <quark/vk/instance/instance_bundle.hpp>
+#include <quark/vk/sync/gpu_timeline.hpp>
 #include <vector>
 #include <vulkan/vulkan.h>
 
@@ -46,8 +44,8 @@ private:
   void create_swapchain();
   void create_swapchain_image_views();
 
-  util::Status create_frame_cmd();
-  util::Status create_frame_sync();
+  util::Status create_frame();
+  util::Status create_retirement_queue();
   util::Status record_command_buffers();
 
   void create_render_pass();
@@ -71,9 +69,8 @@ private:
 
   static constexpr uint32_t kMaxFramesInFlight{2};
 
-  details::FrameCmd frame_cmd_;
-  details::FrameSync frame_sync_; // Binary semaphores only
-  GpuTimeline gpu_timeline_;      // global timeline semaphore
+  FrameBundle frame_;
+  GpuTimeline gpu_timeline_; // global timeline semaphore
   RetirementQueue retirement_queue_;
 
   VkRenderPass render_pass_{VK_NULL_HANDLE};
