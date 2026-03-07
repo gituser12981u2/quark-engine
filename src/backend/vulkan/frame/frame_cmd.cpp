@@ -25,7 +25,7 @@ util::Status FrameCmd::create(const CreateInfo &ci) {
   QUARK_VK_TRY(vkCreateCommandPool(vk_device_, &pool_info, alloc_, &pool_));
 
   QUARK_TRY_STATUS(resize(ci.buffer_count));
-  return {};
+  QUARK_OK();
 }
 
 void FrameCmd::free_buffers_() noexcept {
@@ -36,33 +36,6 @@ void FrameCmd::free_buffers_() noexcept {
                          buffers_.data());
     buffers_.clear();
   }
-}
-
-util::Status FrameCmd::resize(uint32_t new_count) {
-  QUARK_ENSURE(vk_device_ != VK_NULL_HANDLE,
-               QUARK_ERR(util::Errc::InvalidState, "device is null"));
-  QUARK_ENSURE(pool_ != VK_NULL_HANDLE,
-               QUARK_ERR(util::Errc::InvalidState, "pool is null"));
-
-  if (new_count == static_cast<uint32_t>(buffers_.size())) {
-    return {};
-  }
-
-  free_buffers_();
-
-  buffers_.assign(new_count, VK_NULL_HANDLE);
-
-  VkCommandBufferAllocateInfo alloc_info{};
-  alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-  alloc_info.commandPool = pool_;
-  alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-  alloc_info.commandBufferCount = new_count;
-
-  QUARK_VK_TRY(
-      vkAllocateCommandBuffers(vk_device_, &alloc_info, buffers_.data()));
-
-  // TODO: remove this pattern
-  return {};
 }
 
 void FrameCmd::destroy() noexcept {
@@ -77,6 +50,31 @@ void FrameCmd::destroy() noexcept {
   graphics_qfi_ = 0;
   alloc_ = nullptr;
   buffers_.clear();
+}
+
+util::Status FrameCmd::resize(uint32_t new_count) {
+  QUARK_ENSURE(vk_device_ != VK_NULL_HANDLE,
+               QUARK_ERR(util::Errc::InvalidState, "device is null"));
+  QUARK_ENSURE(pool_ != VK_NULL_HANDLE,
+               QUARK_ERR(util::Errc::InvalidState, "pool is null"));
+
+  if (new_count == static_cast<uint32_t>(buffers_.size())) {
+    QUARK_OK();
+  }
+
+  free_buffers_();
+
+  buffers_.assign(new_count, VK_NULL_HANDLE);
+
+  VkCommandBufferAllocateInfo alloc_info{};
+  alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+  alloc_info.commandPool = pool_;
+  alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+  alloc_info.commandBufferCount = new_count;
+
+  QUARK_VK_TRY(
+      vkAllocateCommandBuffers(vk_device_, &alloc_info, buffers_.data()));
+  QUARK_OK();
 }
 
 } // namespace quark::vk::details

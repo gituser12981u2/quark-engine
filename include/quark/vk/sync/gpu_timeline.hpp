@@ -1,7 +1,7 @@
 #pragma once
 
-#include "quark/utils/raii.hpp"
 #include <cstdint>
+#include <quark/utils/raii.hpp>
 #include <quark/utils/result.hpp>
 #include <quark/vk/device/device_view.hpp>
 #include <vulkan/vulkan_core.h>
