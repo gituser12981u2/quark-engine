@@ -14,7 +14,6 @@ public:
   enum class Features : uint64_t {
     TimelineSemaphore = 1ULL << 0,
   };
-
   using FeatureFlags = uint64_t;
 
   struct CreateInfo {

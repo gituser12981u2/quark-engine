@@ -47,8 +47,6 @@ public:
                                     : VK_NULL_HANDLE;
   }
 
-  [[nodiscard]] VkSemaphore timeline() const noexcept { return timeline_; }
-
   /**
    * Last submitted timeline value for this frame slot.
    *
@@ -57,17 +55,6 @@ public:
   [[nodiscard]] uint64_t in_flight_value(uint32_t frame) const noexcept {
     return (frame < frames_.size()) ? frames_[frame].in_flight_value : 0;
   }
-
-  /**
-   * Wait until GPU has completed work for the given frame slot.
-   *
-   * No - op if in_flight_value (frame) == 0.
-   */
-  [[nodiscard]] util::Status wait_frame(uint32_t frame,
-                                        uint64_t timeout_ns = UINT64_MAX) const;
-
-  /// Obtain a unique timeline value to signal on the next submit.
-  [[nodiscard]] uint64_t next_signal_value() noexcept { return next_value_++; }
 
   /// After vkQueueSubmit, record the value that represents frame slot is in
   /// flight.
@@ -87,14 +74,8 @@ private:
   util::Status create_per_frame_(uint32_t count);
   void destroy_per_frame_() noexcept;
 
-  util::Status create_timeline_();
-  void destroy_timeline_() noexcept;
-
   VkDevice vk_device_ = VK_NULL_HANDLE; // non-owning
   const VkAllocationCallbacks *alloc_ = nullptr;
-
-  VkSemaphore timeline_ = VK_NULL_HANDLE;
-  uint64_t next_value_ = 1;
 
   bool frames_idle_on_create_ = true;
   std::vector<PerFrame> frames_;

@@ -1,7 +1,9 @@
 #pragma once
 
+#include "quark/engine/retire/retirement_queue.hpp"
 #include "quark/vk/frame/details/frame_cmd.hpp"
 #include "quark/vk/frame/details/frame_sync.hpp"
+#include "quark/vk/sync/gpu_timeline.hpp"
 
 #include <array>
 #include <cstdint>
@@ -37,7 +39,10 @@ private:
 
   util::Status create_instance();
   void create_surface();
+
   util::Status create_device();
+  util::Status create_gpu_timeline();
+
   void create_swapchain();
   void create_swapchain_image_views();
 
@@ -67,7 +72,9 @@ private:
   static constexpr uint32_t kMaxFramesInFlight{2};
 
   details::FrameCmd frame_cmd_;
-  details::FrameSync frame_sync_;
+  details::FrameSync frame_sync_; // Binary semaphores only
+  GpuTimeline gpu_timeline_;      // global timeline semaphore
+  RetirementQueue retirement_queue_;
 
   VkRenderPass render_pass_{VK_NULL_HANDLE};
   vector<VkFramebuffer> framebuffers_;
