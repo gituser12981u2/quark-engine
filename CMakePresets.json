@@ -8,6 +8,7 @@
       "cacheVariables": {
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
         "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_FEATURE_FLAGS": "manifests",
         "QUARK_ENABLE_ASAN": "OFF",
         "QUARK_ENABLE_UBSAN": "OFF",
         "QUARK_ENABLE_TSAN": "OFF",
@@ -20,8 +21,19 @@
       "hidden": true,
       "inherits": "base",
       "cacheVariables": {
+        "CMAKE_OSX_ARCHITECTURES": "arm64",
         "VCPKG_TARGET_TRIPLET": "arm64-osx",
         "VCPKG_HOST_TRIPLET": "arm64-osx"
+      }
+    },
+    {
+      "name": "macos-x64",
+      "hidden": true,
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_OSX_ARCHITECTURES": "x86_64",
+        "VCPKG_TARGET_TRIPLET": "x64-osx",
+        "VCPKG_HOST_TRIPLET": "x64-osx"
       }
     },
     {
@@ -61,6 +73,14 @@
       "inherits": "macos-arm64",
       "binaryDir": "${sourceDir}/build/macos-arm64-debug",
       "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+    },
+    {
+      "name": "macos-x64-debug",
+      "inherits": "macos-x64",
+      "binaryDir": "${sourceDir}/build/macos-x64-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
     },
     {
       "name": "macos-arm64-asan-ubsan",
@@ -194,25 +214,81 @@
   ],
 
   "buildPresets": [
-    { "name": "macos-arm64-debug", "configurePreset": "macos-arm64-debug" },
-    { "name": "macos-arm64-asan-ubsan", "configurePreset": "macos-arm64-asan-ubsan" },
-    { "name": "macos-arm64-release", "configurePreset": "macos-arm64-release" },
-    { "name": "macos-arm64-release-lto", "configurePreset": "macos-arm64-release-lto" },
+    {
+      "name": "macos-arm64-debug",
+      "configurePreset": "macos-arm64-debug"
+    },
+    {
+      "name": "macos-arm64-asan-ubsan",
+      "configurePreset": "macos-arm64-asan-ubsan"
+    },
+    {
+      "name": "macos-arm64-release",
+      "configurePreset": "macos-arm64-release"
+    },
+    {
+      "name": "macos-arm64-release-lto",
+      "configurePreset": "macos-arm64-release-lto"
+    },
 
-    { "name": "linux-x64-gcc-debug", "configurePreset": "linux-x64-gcc-debug" },
-    { "name": "linux-x64-gcc-asan-ubsan", "configurePreset": "linux-x64-gcc-asan-ubsan" },
-    { "name": "linux-x64-gcc-tsan", "configurePreset": "linux-x64-gcc-tsan" },
-    { "name": "linux-x64-gcc-release", "configurePreset": "linux-x64-gcc-release" },
-    { "name": "linux-x64-gcc-release-lto", "configurePreset": "linux-x64-gcc-release-lto" },
+    {
+      "name": "macos-x64-debug",
+      "configurePreset": "macos-x64-debug"
+    },
 
-    { "name": "linux-x64-clang-debug", "configurePreset": "linux-x64-clang-debug" },
-    { "name": "linux-x64-clang-asan-ubsan", "configurePreset": "linux-x64-clang-asan-ubsan" },
-    { "name": "linux-x64-clang-tsan", "configurePreset": "linux-x64-clang-tsan" },
-    { "name": "linux-x64-clang-release", "configurePreset": "linux-x64-clang-release" },
-    { "name": "linux-x64-clang-release-lto", "configurePreset": "linux-x64-clang-release-lto" },
+    {
+      "name": "linux-x64-gcc-debug",
+      "configurePreset": "linux-x64-gcc-debug"
+    },
+    {
+      "name": "linux-x64-gcc-asan-ubsan",
+      "configurePreset": "linux-x64-gcc-asan-ubsan"
+    },
+    {
+      "name": "linux-x64-gcc-tsan",
+      "configurePreset": "linux-x64-gcc-tsan"
+    },
+    {
+      "name": "linux-x64-gcc-release",
+      "configurePreset": "linux-x64-gcc-release"
+    },
+    {
+      "name": "linux-x64-gcc-release-lto",
+      "configurePreset": "linux-x64-gcc-release-lto"
+    },
 
-    { "name": "windows-x64-msvc-debug", "configurePreset": "windows-x64-msvc-debug" },
-    { "name": "windows-x64-msvc-release", "configurePreset": "windows-x64-msvc-release" },
-    { "name": "windows-x64-msvc-release-lto", "configurePreset": "windows-x64-msvc-release-lto" }
+    {
+      "name": "linux-x64-clang-debug",
+      "configurePreset": "linux-x64-clang-debug"
+    },
+    {
+      "name": "linux-x64-clang-asan-ubsan",
+      "configurePreset": "linux-x64-clang-asan-ubsan"
+    },
+    {
+      "name": "linux-x64-clang-tsan",
+      "configurePreset": "linux-x64-clang-tsan"
+    },
+    {
+      "name": "linux-x64-clang-release",
+      "configurePreset": "linux-x64-clang-release"
+    },
+    {
+      "name": "linux-x64-clang-release-lto",
+      "configurePreset": "linux-x64-clang-release-lto"
+    },
+
+    {
+      "name": "windows-x64-msvc-debug",
+      "configurePreset": "windows-x64-msvc-debug"
+    },
+    {
+      "name": "windows-x64-msvc-release",
+      "configurePreset": "windows-x64-msvc-release"
+    },
+    {
+      "name": "windows-x64-msvc-release-lto",
+      "configurePreset": "windows-x64-msvc-release-lto"
+    }
   ]
 }

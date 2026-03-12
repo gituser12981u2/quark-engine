@@ -1,6 +1,9 @@
 # workspace
 build/
 compile_commands.json
+.cache
+logs/
+CMakeFiles/
 
 # macOS
 .DS_Store

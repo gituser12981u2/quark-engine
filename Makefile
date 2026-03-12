@@ -26,8 +26,10 @@ endif
 ifeq ($(UNAME_S),Darwin)
   ifeq ($(UNAME_M),arm64)
     CMAKE_CONFIGURE_PRESET := macos-arm64-$(SUFFIX)
+  else ifeq ($(UNAME_M),x86_64)
+    CMAKE_CONFIGURE_PRESET := macos-x64-$(SUFFIX)
   else
-    $(error Unsupported macOS arch '$(UNAME_M)'. Add macos-x64-* presets if needed.)
+    $(error Unsupported macOS arch '$(UNAME_M)')
   endif
   BUILD_DIR := build/$(CMAKE_CONFIGURE_PRESET)
 
@@ -55,13 +57,71 @@ else
     CMAKE_CONFIGURE_PRESET := windows-x64-msvc-$(SUFFIX)
     BUILD_DIR := build/$(CMAKE_CONFIGURE_PRESET)
   endif
+
+  ifeq ($(SUFFIX),asan-ubsan)
+    $(error CONFIG=asan-ubsan is not supported for windows-x64-msvc presets)
+  endif
+  ifeq ($(SUFFIX),tsan)
+    $(error CONFIG=tsan is not supported for windows-x64-msvc presets)
+  endif
 endif
 
-.PHONY: deps configure build run clean 
+# Derive the vcpkg triplet from platform to match CMakePresets.json
+ifeq ($(UNAME_S),Darwin)
+  ifeq ($(UNAME_M),arm64)
+    VCPKG_TRIPLET := arm64-osx
+  else ifeq ($(UNAME_M),x86_64)
+    VCPKG_TRIPLET := x64-osx
+  else
+    $(error Unsupported macOS arch '$(UNAME_M)')
+  endif
+else ifeq ($(UNAME_S),Linux)
+  VCPKG_TRIPLET := x64-linux
+else
+  # Windows/MSYS/Git Bash/Cygwin (probably)
+  VCPKG_TRIPLET := x64-windows
+endif
 
+.PHONY: deps vcpkg-install configure build run clean bench-noop bench-touch
+
+###  testing this for non-gh actions
 deps:
-	git submodule update --init --recursive
-	@if [ -f "vcpkg/bootstrap-vcpkg.sh" ]; then \
+	@set -e; \
+	if ! command -v ninja >/dev/null 2>&1; then \
+		echo "ninja not found; attempting to install..."; \
+		if command -v apt-get >/dev/null 2>&1; then \
+			if command -v sudo >/dev/null 2>&1; then SUDO=sudo; else SUDO=; fi; \
+			$$SUDO apt-get update; \
+			$$SUDO apt-get install -y ninja-build; \
+		elif command -v dnf >/dev/null 2>&1; then \
+			if command -v sudo >/dev/null 2>&1; then SUDO=sudo; else SUDO=; fi; \
+			$$SUDO dnf install -y ninja-build; \
+		elif command -v pacman >/dev/null 2>&1; then \
+			if command -v sudo >/dev/null 2>&1; then SUDO=sudo; else SUDO=; fi; \
+			$$SUDO pacman -S --noconfirm ninja; \
+		elif command -v zypper >/dev/null 2>&1; then \
+			if command -v sudo >/dev/null 2>&1; then SUDO=sudo; else SUDO=; fi; \
+			$$SUDO zypper --non-interactive install ninja; \
+		elif command -v brew >/dev/null 2>&1; then \
+			brew install ninja; \
+		elif command -v winget >/dev/null 2>&1 || command -v winget.exe >/dev/null 2>&1; then \
+			if command -v winget >/dev/null 2>&1; then WINGET=winget; else WINGET=winget.exe; fi; \
+			$$WINGET install --id Ninja-build.Ninja --exact --accept-package-agreements --accept-source-agreements; \
+		else \
+			echo "error: ninja is missing and no supported package manager was found"; \
+			exit 1; \
+		fi; \
+	else \
+		echo "ninja already installed"; \
+	fi; \
+	if [ ! -f "vcpkg/bootstrap-vcpkg.sh" ] && [ ! -f "vcpkg/bootstrap-vcpkg.bat" ]; then \
+		echo "vcpkg checkout not found; cloning..."; \
+		rm -rf vcpkg; \
+		git clone https://github.com/microsoft/vcpkg.git vcpkg; \
+	else \
+		git submodule update --init --recursive; \
+	fi; \
+	if [ -f "vcpkg/bootstrap-vcpkg.sh" ]; then \
 		if [ ! -f "vcpkg/vcpkg" ]; then \
 			echo "Bootstrapping vcpkg (Unix)..."; \
 			cd vcpkg && ./bootstrap-vcpkg.sh; \
@@ -80,16 +140,19 @@ deps:
 		exit 1; \
 	fi
 
+vcpkg-install: deps
+	./vcpkg/vcpkg install --triplet $(VCPKG_TRIPLET)
 
 configure:
-	cmake --preset $(CMAKE_CONFIGURE_PRESET) 
-	./scripts/sync_compile_commands.sh $(BUILD_DIR) 
+	cmake --preset $(CMAKE_CONFIGURE_PRESET)
+	./scripts/sync_compile_commands.sh $(BUILD_DIR)
 
 build: configure
-	cmake --build $(BUILD_DIR) 
+	cmake --build $(BUILD_DIR)
 
-run: build 
+run: build
 	cmake --build $(BUILD_DIR) --target run
 
 clean:
 	rm -rf build
+

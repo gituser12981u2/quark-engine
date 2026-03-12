@@ -1,0 +1,19 @@
+{
+  "name": "quark-engine",
+  "version-string": "0.1.0",
+  "dependencies": [
+    "vulkan",
+    {
+      "name": "vulkan-loader",
+      "features": [
+        "xcb",
+        "xlib",
+        "wayland"
+      ]
+    },
+    "glfw3",
+    "tl-expected",
+    "fmt",
+    "spdlog"
+  ]
+}
