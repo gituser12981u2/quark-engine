@@ -1,5 +1,6 @@
 #pragma once
 
+#include "quark/utils/result.hpp"
 #include <quark/utils/raii.hpp>
 #include <quark/vk/device/details/device.hpp>
 #include <quark/vk/device/details/device_handle.hpp>
@@ -15,7 +16,7 @@ public:
 
   QUARK_MOVE_ONLY(DeviceBundle);
 
-  void create(const Device::CreateInfo &ci);
+  util::Status create(const Device::CreateInfo &ci);
   void destroy() noexcept;
 
   [[nodiscard]] bool valid() const noexcept { return registry_.alive(handle_); }

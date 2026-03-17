@@ -176,7 +176,7 @@ util::Status VulkanContext::init() {
   QUARK_TRY_STATUS(create_instance());
 
   create_surface();
-  create_device();
+  QUARK_TRY_STATUS(create_device());
   create_command_pool();
   create_swapchain();
   create_swapchain_image_views();
@@ -286,16 +286,18 @@ void VulkanContext::create_surface() {
   }
 }
 
-void VulkanContext::create_device() {
+util::Status VulkanContext::create_device() {
   Device::CreateInfo ci{};
   ci.instance = instance_.vk_instance();
   ci.surface = surface_;
   ci.required_extensions = {kSwapchainExtension};
-  device_.create(ci);
+  QUARK_TRY_STATUS(device_.create(ci));
 
   VkPhysicalDeviceProperties properties{};
   vkGetPhysicalDeviceProperties(device_.vk_physical_device(), &properties);
   QUARK_LOG_INFO("Selected GPU: {}", properties.deviceName);
+
+  return {};
 }
 
 void VulkanContext::create_command_pool() {
