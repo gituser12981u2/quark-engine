@@ -10,7 +10,7 @@ add_subdirectory(presentation)
 add_subdirectory(sync)
 
 target_link_libraries(quark_backend_vulkan
-  INTERFACE
+  PRIVATE
     quark::backend::vulkan::instance
     quark::backend::vulkan::device
     quark::backend::vulkan::frame
