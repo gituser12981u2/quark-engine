@@ -6,6 +6,7 @@ add_library(quark::backend::vulkan ALIAS quark_backend_vulkan)
 add_subdirectory(instance)
 add_subdirectory(device)
 add_subdirectory(frame)
+add_subdirectory(presentation)
 add_subdirectory(sync)
 
 target_link_libraries(quark_backend_vulkan
@@ -13,8 +14,9 @@ target_link_libraries(quark_backend_vulkan
     quark::backend::vulkan::instance
     quark::backend::vulkan::device
     quark::backend::vulkan::frame
+    quark::backend::vulkan::presentation
     quark::backend::vulkan::sync
-  PUBLIC 
+  PUBLIC
     quark::headers::vk
 )
 

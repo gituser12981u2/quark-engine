@@ -1,7 +1,10 @@
 #include <algorithm>
+#include <array>
+#include <limits>
 #include <quark/platform/window/IWindow.hpp>
 #include <quark/vk/presentation/details/swapchain.hpp>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
@@ -93,13 +96,31 @@ VkExtent2D choose_extent(const platform::IWindow &window,
   return actual_extent;
 }
 
-void throw_if_vk(VkResult result, const char *what) {
-  if (result != VK_SUCCESS) {
-    throw std::runtime_error(what);
-  }
-}
-
 } // namespace
+
+Swapchain::Swapchain(Swapchain &&other) noexcept
+    : device_(std::exchange(other.device_, VK_NULL_HANDLE)),
+      swapchain_(std::exchange(other.swapchain_, VK_NULL_HANDLE)),
+      image_format_(std::exchange(other.image_format_, VK_FORMAT_UNDEFINED)),
+      extent_(std::exchange(other.extent_, VkExtent2D{})),
+      images_(std::move(other.images_)),
+      image_views_(std::move(other.image_views_)) {}
+
+Swapchain &Swapchain::operator=(Swapchain &&other) noexcept {
+  if (this == &other) {
+    return *this;
+  }
+
+  reset();
+
+  device_ = std::exchange(other.device_, VK_NULL_HANDLE);
+  swapchain_ = std::exchange(other.swapchain_, VK_NULL_HANDLE);
+  image_format_ = std::exchange(other.image_format_, VK_FORMAT_UNDEFINED);
+  extent_ = std::exchange(other.extent_, VkExtent2D{});
+  images_ = std::move(other.images_);
+  image_views_ = std::move(other.image_views_);
+  return *this;
+}
 
 void Swapchain::create(const CreateInfo &ci) {
   reset();
