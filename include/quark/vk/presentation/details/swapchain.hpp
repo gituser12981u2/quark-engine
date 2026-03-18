@@ -30,7 +30,9 @@ public:
   Swapchain() = default;
   ~Swapchain() { reset(); }
 
-  QUARK_MOVE_ONLY(Swapchain);
+  QUARK_NO_COPY(Swapchain);
+  Swapchain(Swapchain &&other) noexcept;
+  Swapchain &operator=(Swapchain &&other) noexcept;
 
   void create(const CreateInfo &ci);
   void reset() noexcept;

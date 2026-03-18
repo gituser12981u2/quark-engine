@@ -13,8 +13,19 @@ public:
   // NOLINTNEXTLINE(performance-enum-size)
   enum class Features : uint64_t {
     TimelineSemaphore = 1ULL << 0,
+    DynamicRendering = 1ULL << 1,
+    Synchronization2 = 1ULL << 2,
   };
   using FeatureFlags = uint64_t;
+
+  struct Capabilities {
+    uint32_t api_version = VK_API_VERSION_1_0;
+    FeatureFlags enabled_features = 0;
+
+    [[nodiscard]] bool has_feature(Features feature) const noexcept {
+      return (enabled_features & static_cast<FeatureFlags>(feature)) != 0;
+    }
+  };
 
   struct CreateInfo {
     VkInstance instance = VK_NULL_HANDLE;
@@ -23,7 +34,8 @@ public:
 
     std::vector<const char *> required_extensions;
 
-    FeatureFlags requested_features = 0;
+    FeatureFlags required_features = 0;
+    FeatureFlags preferred_features = 0;
   };
 
   Device() = default;
@@ -58,6 +70,10 @@ public:
 
   [[nodiscard]] uint32_t present_queue_family_index() const noexcept {
     return present_queue_family_index_;
+  }
+
+  [[nodiscard]] const Capabilities &capabilities() const noexcept {
+    return capabilities_;
   }
 
 private:
@@ -96,6 +112,7 @@ private:
   uint32_t graphics_queue_family_index_ = 0;
   uint32_t present_queue_family_index_ = 0;
   const VkAllocationCallbacks *alloc_ = nullptr;
+  Capabilities capabilities_{};
 };
 
 } // namespace quark::vk::details
