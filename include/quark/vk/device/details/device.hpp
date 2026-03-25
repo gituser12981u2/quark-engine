@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <quark/utils/raii.hpp>
 #include <quark/utils/result.hpp>
+#include <quark/vk/device/details/device_capabilities.hpp>
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
@@ -10,23 +11,6 @@ namespace quark::vk::details {
 
 class Device final {
 public:
-  // NOLINTNEXTLINE(performance-enum-size)
-  enum class Features : uint64_t {
-    TimelineSemaphore = 1ULL << 0,
-    DynamicRendering = 1ULL << 1,
-    Synchronization2 = 1ULL << 2,
-  };
-  using FeatureFlags = uint64_t;
-
-  struct Capabilities {
-    uint32_t api_version = VK_API_VERSION_1_0;
-    FeatureFlags enabled_features = 0;
-
-    [[nodiscard]] bool has_feature(Features feature) const noexcept {
-      return (enabled_features & static_cast<FeatureFlags>(feature)) != 0;
-    }
-  };
-
   struct CreateInfo {
     VkInstance instance = VK_NULL_HANDLE;
     VkSurfaceKHR surface = VK_NULL_HANDLE;
@@ -34,8 +18,8 @@ public:
 
     std::vector<const char *> required_extensions;
 
-    FeatureFlags required_features = 0;
-    FeatureFlags preferred_features = 0;
+    DeviceFeatureFlags required_features = 0;
+    DeviceFeatureFlags preferred_features = 0;
   };
 
   Device() = default;
@@ -72,7 +56,7 @@ public:
     return present_queue_family_index_;
   }
 
-  [[nodiscard]] const Capabilities &capabilities() const noexcept {
+  [[nodiscard]] const DeviceCapabilities &capabilities() const noexcept {
     return capabilities_;
   }
 
@@ -112,7 +96,7 @@ private:
   uint32_t graphics_queue_family_index_ = 0;
   uint32_t present_queue_family_index_ = 0;
   const VkAllocationCallbacks *alloc_ = nullptr;
-  Capabilities capabilities_{};
+  DeviceCapabilities capabilities_{};
 };
 
 } // namespace quark::vk::details

@@ -73,10 +73,10 @@ uint32_t DeviceBundle::present_queue_family_index() const noexcept {
   return (device != nullptr) ? device->present_queue_family_index() : 0;
 }
 
-details::Device::Capabilities DeviceBundle::capabilities() const noexcept {
+details::DeviceCapabilities DeviceBundle::capabilities() const noexcept {
   const details::Device *device = registry_.get(handle_);
   return (device != nullptr) ? device->capabilities()
-                             : details::Device::Capabilities{};
+                             : details::DeviceCapabilities{};
 }
 
 } // namespace quark::vk

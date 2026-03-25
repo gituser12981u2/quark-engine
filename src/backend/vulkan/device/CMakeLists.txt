@@ -1,5 +1,6 @@
 add_library(quark_backend_vulkan_device STATIC
   device.cpp
+  device_feature_chain_builder.cpp
   device_registry.cpp
   device_bundle.cpp
   device_view.cpp

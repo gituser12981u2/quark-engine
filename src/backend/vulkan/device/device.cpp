@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <cstring>
 #include <quark/vk/device/details/device.hpp>
+#include <quark/vk/device/details/device_feature_chain_builder.hpp>
 #include <quark/vk/diagnostic_prelude.hpp>
 #include <set>
 #include <vector>
@@ -9,86 +10,6 @@
 #include <vulkan/vulkan_core.h>
 
 namespace quark::vk::details {
-
-namespace {
-
-struct DeviceFeatureChain {
-  VkPhysicalDeviceFeatures2 features2{};
-  VkPhysicalDeviceVulkan12Features vk12{};
-  VkPhysicalDeviceVulkan13Features vk13{};
-
-  DeviceFeatureChain() {
-    features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-
-    vk12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
-    vk13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
-
-    features2.pNext = &vk12;
-    vk12.pNext = &vk13;
-    vk13.pNext = nullptr;
-  }
-};
-
-[[nodiscard]] constexpr bool has_feature(Device::FeatureFlags flags,
-                                         Device::Features features) noexcept {
-  return (flags & static_cast<Device::FeatureFlags>(features)) != 0;
-}
-
-[[nodiscard]] util::Result<DeviceFeatureChain>
-build_device_feature_chain(VkPhysicalDevice physical_device,
-                           const Device::FeatureFlags required_flags,
-                           const Device::FeatureFlags preferred_flags,
-                           Device::Capabilities &capabilities) {
-  QUARK_ENSURE(physical_device != VK_NULL_HANDLE,
-               QUARK_ERR(util::Errc::InvalidArg, "physical_device is null"));
-
-  DeviceFeatureChain supported{};
-  vkGetPhysicalDeviceFeatures2(physical_device, &supported.features2);
-
-  DeviceFeatureChain requested{};
-
-  auto maybe_enable = [&](Device::Features bit, const char *name,
-                          VkBool32 supported_value,
-                          VkBool32 &out_enable) -> util::Status {
-    const bool required = has_feature(required_flags, bit);
-    const bool preferred = has_feature(preferred_flags, bit);
-    if (!required && !preferred) {
-      QUARK_OK();
-    }
-    QUARK_LOG_INFO("device feature requested: {} required={} supported={}",
-                   name, required ? "true" : "false",
-                   supported_value ? "true" : "false");
-
-    if (supported_value != VK_TRUE) {
-      QUARK_ENSURE(required,
-                   QUARK_ERR(util::Errc::Unsupported,
-                             "Required device feature unsupported: {}", name));
-      QUARK_LOG_INFO("device feature unavailable: {}", name);
-      QUARK_OK();
-    }
-
-    out_enable = VK_TRUE;
-    capabilities.enabled_features |= static_cast<Device::FeatureFlags>(bit);
-    QUARK_LOG_INFO("device feature enabled: {}", name);
-    QUARK_OK();
-  };
-
-  QUARK_TRY_STATUS(maybe_enable(
-      Device::Features::TimelineSemaphore, "timelineSemaphore",
-      supported.vk12.timelineSemaphore, requested.vk12.timelineSemaphore));
-
-  QUARK_TRY_STATUS(maybe_enable(
-      Device::Features::DynamicRendering, "dynamicRendering",
-      supported.vk13.dynamicRendering, requested.vk13.dynamicRendering));
-
-  QUARK_TRY_STATUS(maybe_enable(
-      Device::Features::Synchronization2, "synchronization2",
-      supported.vk13.synchronization2, requested.vk13.synchronization2));
-
-  return requested;
-}
-
-} // namespace
 
 util::Status Device::create(const Device::CreateInfo &ci) {
   destroy();
@@ -113,7 +34,13 @@ util::Status Device::create(const Device::CreateInfo &ci) {
   VkPhysicalDeviceProperties properties{};
   vkGetPhysicalDeviceProperties(physical_device_, &properties);
   capabilities_.api_version = properties.apiVersion;
+  capabilities_.supported_features = 0;
   capabilities_.enabled_features = 0;
+
+  QUARK_LOG_INFO("physical device vulkan version: {}.{}.{}",
+                 VK_VERSION_MAJOR(capabilities_.api_version),
+                 VK_VERSION_MINOR(capabilities_.api_version),
+                 VK_VERSION_PATCH(capabilities_.api_version));
 
   constexpr float queue_priority{1.0F};
   const std::set<uint32_t> unique_queue_families{graphics_queue_family_index_,
@@ -135,14 +62,15 @@ util::Status Device::create(const Device::CreateInfo &ci) {
       enabled_device_extensions,
       build_device_extensions_(physical_device_, ci.required_extensions));
 
-  DeviceFeatureChain feature_chain{};
-  QUARK_TRY_ASSIGN(feature_chain, build_device_feature_chain(
-                                      physical_device_, ci.required_features,
-                                      ci.preferred_features, capabilities_));
+  DeviceFeatureChainBuilder feature_builder;
+  QUARK_TRY_STATUS(
+      feature_builder.query_supported(physical_device_, capabilities_));
+  QUARK_TRY_STATUS(feature_builder.select_requested(
+      ci.required_features, ci.preferred_features, capabilities_));
 
   VkDeviceCreateInfo create_info{};
   create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-  create_info.pNext = &feature_chain.features2;
+  create_info.pNext = feature_builder.create_pnext();
   create_info.pQueueCreateInfos = queue_create_infos.data();
   create_info.queueCreateInfoCount =
       static_cast<uint32_t>(queue_create_infos.size());
@@ -151,7 +79,7 @@ util::Status Device::create(const Device::CreateInfo &ci) {
   create_info.ppEnabledExtensionNames = enabled_device_extensions.empty()
                                             ? nullptr
                                             : enabled_device_extensions.data();
-  create_info.pEnabledFeatures = nullptr; // Using Features2 chain
+  create_info.pEnabledFeatures = nullptr;
 
   VkDevice out = VK_NULL_HANDLE;
   QUARK_VK_TRY(vkCreateDevice(physical_device_, &create_info, alloc_, &out));
@@ -175,7 +103,6 @@ void Device::destroy() noexcept {
   graphics_queue_family_index_ = 0;
   present_queue_family_index_ = 0;
   alloc_ = nullptr;
-  capabilities_ = Capabilities{};
 }
 
 util::Result<Device::DeviceSelection> Device::pick_physical_device_(

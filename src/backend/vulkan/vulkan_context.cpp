@@ -282,13 +282,12 @@ util::Status VulkanContext::create_device() {
   DeviceBundle::CreateInfo ci{};
   ci.device.instance = instance_.vk_instance();
   ci.device.surface = surface;
-  ci.device.required_features = static_cast<details::Device::FeatureFlags>(
-      details::Device::Features::TimelineSemaphore);
-  ci.device.preferred_features =
-      static_cast<details::Device::FeatureFlags>(
-          details::Device::Features::DynamicRendering) |
-      static_cast<details::Device::FeatureFlags>(
-          details::Device::Features::Synchronization2);
+  ci.device.required_features = static_cast<details::DeviceFeatureFlags>(
+      details::DeviceFeature::TimelineSemaphore);
+  ci.device.preferred_features = static_cast<details::DeviceFeatureFlags>(
+                                     details::DeviceFeature::DynamicRendering) |
+                                 static_cast<details::DeviceFeatureFlags>(
+                                     details::DeviceFeature::Synchronization2);
   ci.device.required_extensions = {kSwapchainExtension};
 
   auto device_status = device_.create(ci);
@@ -322,8 +321,8 @@ void VulkanContext::resolve_render_path() {
 
   const bool can_use_dynamic_rendering =
       api_version_at_least(caps.api_version, 1, 3) &&
-      caps.has_feature(details::Device::Features::DynamicRendering) &&
-      caps.has_feature(details::Device::Features::Synchronization2) &&
+      caps.enabled(details::DeviceFeature::DynamicRendering) &&
+      caps.enabled(details::DeviceFeature::Synchronization2) &&
       queue_submit2_ != nullptr && cmd_begin_rendering_ != nullptr &&
       cmd_end_rendering_ != nullptr && cmd_pipeline_barrier2_ != nullptr;
 

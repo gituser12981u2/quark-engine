@@ -43,7 +43,7 @@ public:
   [[nodiscard]] VkQueue present_queue() const noexcept;
   [[nodiscard]] uint32_t graphics_queue_family_index() const noexcept;
   [[nodiscard]] uint32_t present_queue_family_index() const noexcept;
-  [[nodiscard]] details::Device::Capabilities capabilities() const noexcept;
+  [[nodiscard]] details::DeviceCapabilities capabilities() const noexcept;
 
 private:
   details::DeviceRegistry registry_;
