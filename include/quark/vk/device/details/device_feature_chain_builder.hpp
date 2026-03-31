@@ -7,42 +7,14 @@
 namespace quark::vk::details {
 
 /**
- * @class Vulkan12FeatureSet
- * @brief Semantic grouping of Vulkan 1.2-era device features.
+ * @enum WireFeatureStruct
+ * @brief Identifies which Vulkan feature struct own a feature field.
  *
- * This is an engine-side representation, no a Vulkan ABI type.
+ * DeviceFeatureChainBuilder stores features in a descriptor table and uses
+ * this to determine which Vulkan wire format struct should be read from or
+ * written to for a given feature.
  */
-struct Vulkan12FeatureSet {
-  bool timeline_semaphore = false;
-};
-
-/**
- * @class Vulkan13FeatureSet
- * @brief Semantic grouping of Vulkan 1.3-era device features.
- *
- * This is an engine-side representation, no a Vulkan ABI type.
- */
-struct Vulkan13FeatureSet {
-  bool dynamic_rendering = false;
-  bool synchronization2 = false;
-};
-
-/**
- * @class FeatureSets
- * @brief Aggregate semantic feature state used by the builder.
- */
-struct FeatureSets {
-  Vulkan12FeatureSet vk12{};
-  Vulkan13FeatureSet vk13{};
-};
-
-/**
- * @brief Semantic bucket used by a feature descriptor.
- *
- * This lets a descriptor identify which semantic feature group owns the actual
- * bool that stores support/request state.
- */
-enum class FeatureBucket : uint8_t {
+enum class WireFeatureStruct : uint8_t {
   Vulkan12,
   Vulkan13,
 };
@@ -53,10 +25,9 @@ enum class FeatureBucket : uint8_t {
  *
  * A descriptor is the canonical registry entry for a feature within the
  * builder. It ties together:
- * - the engine-visible feature bit,
- * - a stable log/debug name.
- * - the semantic bucket that owns the feature,
- * - and the member pointer used to access the semantic bool.
+ * - the engine-visible feature bit
+ * - a stable log/debug name
+ * - the Vulkan wire format field
  */
 struct FeatureDescriptor {
   /**
@@ -70,12 +41,52 @@ struct FeatureDescriptor {
   const char *name = nullptr;
 
   /**
-   * @brief Semantic bucket that owns the bool for this feature.
+   * @brief Identifies which Vulkan feature struct owns the mapped field.
    */
-  FeatureBucket bucket{};
+  WireFeatureStruct wire_struct{};
 
-  bool Vulkan12FeatureSet::*vk12_member = nullptr;
-  bool Vulkan13FeatureSet::*vk13_member = nullptr;
+  VkBool32 VkPhysicalDeviceVulkan12Features::*vk12_member = nullptr;
+  VkBool32 VkPhysicalDeviceVulkan13Features::*vk13_member = nullptr;
+
+  /**
+   * @brief Creates a descriptor for a Vulkan 1.2 feature field.
+   *
+   * @param feature Engine level feature bit.
+   * @param name Human-readable feature name.
+   * @param member Member pointer into VkPhysicalDeviceVulkan12Features.
+   * @return Fully initialized descriptor.
+   */
+  [[nodiscard]] static constexpr FeatureDescriptor
+  make_vk12(DeviceFeature feature, const char *name,
+            VkBool32 VkPhysicalDeviceVulkan12Features::*member) noexcept {
+    return FeatureDescriptor{
+        .feature = feature,
+        .name = name,
+        .wire_struct = WireFeatureStruct::Vulkan12,
+        .vk12_member = member,
+        .vk13_member = nullptr,
+    };
+  }
+
+  /**
+   * @brief Create a descriptor for a Vulkan 1.3 feature field.
+   *
+   * @param feature Engine level feature bit.
+   * @param name Human-readable feature name.
+   * @param member Member pointer into VkPhysicalDeviceVulkan13Features.
+   * @return Fully initialized descriptor.
+   */
+  [[nodiscard]] static constexpr FeatureDescriptor
+  make_vk13(DeviceFeature feature, const char *name,
+            VkBool32 VkPhysicalDeviceVulkan13Features::*member) noexcept {
+    return FeatureDescriptor{
+        .feature = feature,
+        .name = name,
+        .wire_struct = WireFeatureStruct::Vulkan13,
+        .vk12_member = nullptr,
+        .vk13_member = member,
+    };
+  }
 };
 
 /**
@@ -83,23 +94,13 @@ struct FeatureDescriptor {
  * @brief Builds and owns the Vulkan feature query/create chain for logical
  * device creation.
  *
- * This class exists to solve three problems:
+ * This class centralizes Vulkan feature enabling and querying. This makes it
+ * simple for developers to add new necessary or optional features.
  *
- * 1. Centralize Vulkan feature support queries and feature enablement policy.
- * 2. Preserve a stable engine-side semantic model of features.
- * 3. Hide platform/runtime-specific pNext chain quirks behind one API.
- *
- * From reading that, it may seem this is trivially done with
- * VkPhysicalDeviceVulkan12Features and the complementary vk13 type, but
- * MoltenVk makes this difficult. On non-Apple platforms, these versioned Vulkan
- * feature structs can serialize robustly, but MoltenVk cannot do this yet.
- * Thus, this design features typical Vulkan serialization on non-Apple
- * platforms and MoltenVk specific behavior behind an Apple flag.
- *
- * This design is intentionally reversible. If MoltenVk/runtime support becomes
- * robust enough that versioned feature structs behave normally everywhere, this
- * class can be simplified back toward a more conventional Vulkan feature-chain
- * builder without changing the higher-level engine feature API.
+ * The builder uses a descriptor table as the single registry of engine-visible
+ * features. This keeps feature support checks, enablement policy, and Vulkan
+ * field mapping consistent and reduces the number of places that must be edited
+ * when adding a new feature.
  */
 class DeviceFeatureChainBuilder final {
 public:
@@ -129,35 +130,19 @@ private:
   /**
    * @brief Canonical registry of all device features known to this builder.
    *
-   * Adding a new feature should primarily involve:
-   * - extending DeviceFeature,
-   * - extending the semantic feature set,
-   * - adding one descriptor entyr here,
-   * - and wiring one read/write mapping at the Vulkan ABI boundary.
+   * Adding a new feature involves:
+   * - adding one descriptor entry
    */
-  static constexpr std::array<FeatureDescriptor, 3> kFeatureDescriptors{{
-      {
-          .feature = DeviceFeature::TimelineSemaphore,
-          .name = "timelineSemaphore",
-          .bucket = FeatureBucket::Vulkan12,
-          .vk12_member = &Vulkan12FeatureSet::timeline_semaphore,
-          .vk13_member = nullptr,
-      },
-      {
-          .feature = DeviceFeature::DynamicRendering,
-          .name = "dynamicRendering",
-          .bucket = FeatureBucket::Vulkan13,
-          .vk12_member = nullptr,
-          .vk13_member = &Vulkan13FeatureSet::dynamic_rendering,
-      },
-      {
-          .feature = DeviceFeature::Synchronization2,
-          .name = "synchronization2",
-          .bucket = FeatureBucket::Vulkan13,
-          .vk12_member = nullptr,
-          .vk13_member = &Vulkan13FeatureSet::synchronization2,
-      },
-  }};
+  static constexpr std::array<FeatureDescriptor, 3> kFeatureDescriptors{
+      {FeatureDescriptor::make_vk12(
+           DeviceFeature::TimelineSemaphore, "timelineSemaphore",
+           &VkPhysicalDeviceVulkan12Features::timelineSemaphore),
+       FeatureDescriptor::make_vk13(
+           DeviceFeature::DynamicRendering, "dynamicRendering",
+           &VkPhysicalDeviceVulkan13Features::dynamicRendering),
+       FeatureDescriptor::make_vk13(
+           DeviceFeature::Synchronization2, "synchronization2",
+           &VkPhysicalDeviceVulkan13Features::synchronization2)}};
 
   /**
    * @brief Test whether a feature bit is present in a bitmask.
@@ -166,30 +151,20 @@ private:
    * @param feature Feature bit to check.
    * @return True is the feature bit is set.
    */
-  [[nodiscard]] static bool has_flag(DeviceFeatureFlags flags,
-                                     DeviceFeature feature) noexcept {
+  [[nodiscard]] static bool has_flag_(DeviceFeatureFlags flags,
+                                      DeviceFeature feature) noexcept {
     return (flags & static_cast<DeviceFeatureFlags>(feature)) != 0;
   }
 
   /**
-   * @brief Read one semantic feature value from a feature set.
+   * @brief Set or clear a feature bit in a bitmask.
    *
-   * @param sets Semantic feature storage to read from.
-   * @param desc Descriptor identifying which semantic bool to access.
-   * @return Current value of the semantic feature.
+   * @param flags Bitmask to update.
+   * @param feature Feature bit to modify.
+   * @param value True to set the bit, false to clear it.
    */
-  [[nodiscard]] static bool
-  get_feature_(const FeatureSets &sets, const FeatureDescriptor &desc) noexcept;
-
-  /**
-   * @brief Write one semantic feature value into a feature set.
-   *
-   * @param sets Semantic feature storage to update.
-   * @param desc Descriptor identifying which semantic bool to access.
-   * @param value New semantic feature value.
-   */
-  static void set_feature_(FeatureSets &sets, const FeatureDescriptor &desc,
-                           bool value) noexcept;
+  static void set_flag_(DeviceFeatureFlags &flags, DeviceFeature feature,
+                        bool value) noexcept;
 
   /**
    * @brief Read one supported feature value from the Vulkan wire chain.
@@ -210,18 +185,12 @@ private:
                                 bool value) noexcept;
 
   /**
-   * @brief Initialize the Vulkan query chain used with
-   * vkGetPhysicalDeviceFeatures2.
-   */
-  void reset_query_chain_() noexcept;
-
-  /**
-   * @brief Initialize the Vulkan device creation chain.
+   * @brief Initialize the Vulkan feature chain structure.
    *
-   * This prepares platform-specific wire structs for later population by
-   * write_requested_feature_().
+   * Prepares the VkPhysicalDeviceFeatures2 root and attaches the versioned
+   * Vulkan feature structs int he correct pNext order.
    */
-  void reset_create_chain_() noexcept;
+  void reset_chain_() noexcept;
 
   /**
    * @brief Apply required/preferred feature policy to one feature.
@@ -241,19 +210,23 @@ private:
                                     bool preferred, bool &requested_out,
                                     DeviceCapabilities &capabilities);
 
-  FeatureSets supported_{};
-  FeatureSets requested_{};
+  /**
+   * @brief Bitset of features reported supported by the physical device.
+   */
+  DeviceFeatureFlags supported_features_ = 0;
 
+  /**
+   * @brief Bitset of features selected for logical-device creation.
+   */
+  DeviceFeatureFlags requested_features_ = 0;
+
+  /**
+   * @brief Root of the Vulkan feature query/create chain.
+   */
   VkPhysicalDeviceFeatures2 features2_{};
 
-#if defined(__APPLE__)
-  VkPhysicalDeviceTimelineSemaphoreFeatures timeline_{};
-  VkPhysicalDeviceDynamicRenderingFeatures dynamic_rendering_{};
-  VkPhysicalDeviceSynchronization2Features synchronization2_{};
-#else
-  VkPhysicalDeviceVulkan12Features vk12{};
-  VkPhysicalDeviceVulkan13Features vk13{};
-#endif
+  VkPhysicalDeviceVulkan12Features vk12_{};
+  VkPhysicalDeviceVulkan13Features vk13_{};
 };
 
 } // namespace quark::vk::details
