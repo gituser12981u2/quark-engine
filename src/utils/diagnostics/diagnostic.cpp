@@ -15,12 +15,18 @@ std::shared_ptr<const SinkList> g_sinks;
 
 void set_diagnostic_sinks(std::span<const DiagnosticSink> sinks) noexcept {
   auto list = std::make_shared<SinkList>(sinks.begin(), sinks.end());
-  std::atomic_store_explicit(&g_sinks,
-                             std::shared_ptr<const SinkList>(std::move(list)),
-                             std::memory_order_release);
+  std::atomic_store_explicit( // NOLINT deprecated-declarations
+      &g_sinks,
+      // the suggestion to use std::atomic::<std::shared_ptr<T>>
+      std::shared_ptr<const SinkList>(
+          std::move(list)), // This may not require a move
+      std::memory_order_release);
+  // lint from clang tidy does not work on msvc(it works on GCC, at least!),  we
+  // should look into this more! TODO
 }
 
 std::shared_ptr<const SinkList> diagnostic_sinks_snapshot() noexcept {
+  // NOLINTNEXTLINE (same as above)
   return std::atomic_load_explicit(std::addressof(g_sinks),
                                    std::memory_order_acquire);
 }

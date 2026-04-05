@@ -248,7 +248,9 @@ Device::build_device_extensions_(VkPhysicalDevice physical_device,
                  QUARK_ERR(util::Errc::Unsupported,
                            "Required device extension unsupported {}", name));
 
-    if (!std::ranges::contains(enabled, name)) {
+    if (std::ranges::none_of(enabled, [name](const char *e) {
+          return std::strcmp(e, name) == 0;
+        })) {
       enabled.push_back(name);
       QUARK_LOG_INFO("device extension enabled: '{}'", name);
     }
@@ -263,7 +265,9 @@ Device::build_device_extensions_(VkPhysicalDevice physical_device,
   // MoltenVK usually needs portability subset;
   constexpr const char *kPortabilitySubset = "VK_KHR_portability_subset";
   if (has_device_extension_props_(props, kPortabilitySubset) &&
-      !std::ranges::contains(enabled, kPortabilitySubset)) {
+      std::ranges::none_of(enabled, [](const char *e) {
+        return std::strcmp(e, kPortabilitySubset) == 0;
+      })) {
     enabled.push_back(kPortabilitySubset);
     QUARK_LOG_INFO("portability subset: enabled");
   }

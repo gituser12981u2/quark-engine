@@ -3,8 +3,6 @@
 #include <quark/vk/presentation/presenter_bundle.hpp>
 #include <quark/vk/surface_source.hpp>
 
-#include <exception>
-
 namespace quark::vk {
 
 namespace {
@@ -53,52 +51,43 @@ util::Status PresenterBundle::create(const CreateInfo &ci) {
 
   QUARK_TRY_ASSIGN(surface_, create_surface(ci.instance, ci.window));
 
-  auto swapchain_res = create_swapchain_(VK_NULL_HANDLE);
-  if (!swapchain_res) {
+  Swapchain::CreateInfo sci{};
+  sci.physical_device = ci.physical_device;
+  sci.device = ci.device;
+  sci.surface = surface_;
+  sci.graphics_queue_family_index = ci.graphics_queue_family_index;
+  sci.present_queue_family_index = ci.present_queue_family_index;
+  sci.window = ci.window;
+  sci.old_swapchain = VK_NULL_HANDLE;
+  sci.preferred_present_mode = ci.preferred_present_mode;
+  sci.preferred_format = ci.preferred_format;
+  sci.preferred_color_space = ci.preferred_color_space;
+
+  if (auto res = swapchain_.create(sci); !res) {
     destroy_surface(ci.instance, surface_);
-    return util::unexpected(std::move(swapchain_res.error()));
+    return util::unexpected(std::move(res.error()));
   }
 
-  swapchain_ = std::move(swapchain_res.value());
   QUARK_OK();
 }
 
-util::Result<Swapchain>
-PresenterBundle::create_swapchain_(VkSwapchainKHR old_swapchain) const {
-  QUARK_ENSURE(
-      surface_ != VK_NULL_HANDLE,
-      QUARK_ERR(util::Errc::InvalidState, "presenter surface is null"));
-
-  Swapchain swapchain;
-  Swapchain::CreateInfo ci{};
-  ci.physical_device = create_info_.physical_device;
-  ci.device = create_info_.device;
-  ci.surface = surface_;
-  ci.graphics_queue_family_index = create_info_.graphics_queue_family_index;
-  ci.present_queue_family_index = create_info_.present_queue_family_index;
-  ci.window = create_info_.window;
-  ci.old_swapchain = old_swapchain;
-  ci.preferred_present_mode = create_info_.preferred_present_mode;
-  ci.preferred_format = create_info_.preferred_format;
-  ci.preferred_color_space = create_info_.preferred_color_space;
-
-  try {
-    swapchain.create(ci);
-  } catch (const std::exception &e) {
-    QUARK_FAIL(QUARK_ERR(util::Errc::ApiError,
-                         "PresenterBundle::create_swapchain_ failed: {}",
-                         e.what()));
-  }
-
-  return swapchain;
-}
-
 util::Status PresenterBundle::recreate_swapchain() {
-  auto *old_swapchain = swapchain_.handle();
+  VkSwapchainKHR old_handle = swapchain_.handle();
+
+  Swapchain::CreateInfo sci{};
+  sci.physical_device = create_info_.physical_device;
+  sci.device = create_info_.device;
+  sci.surface = surface_;
+  sci.graphics_queue_family_index = create_info_.graphics_queue_family_index;
+  sci.present_queue_family_index = create_info_.present_queue_family_index;
+  sci.window = create_info_.window;
+  sci.old_swapchain = old_handle;
+  sci.preferred_present_mode = create_info_.preferred_present_mode;
+  sci.preferred_format = create_info_.preferred_format;
+  sci.preferred_color_space = create_info_.preferred_color_space;
 
   Swapchain next_swapchain;
-  QUARK_TRY_ASSIGN(next_swapchain, create_swapchain_(old_swapchain));
-
+  QUARK_TRY_STATUS(next_swapchain.create(sci));
   swapchain_ = std::move(next_swapchain);
   QUARK_OK();
 }

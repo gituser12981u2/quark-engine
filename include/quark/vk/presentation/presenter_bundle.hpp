@@ -45,9 +45,6 @@ public:
   [[nodiscard]] Swapchain &swapchain() noexcept { return swapchain_; }
 
 private:
-  [[nodiscard]] util::Result<Swapchain>
-  create_swapchain_(VkSwapchainKHR old_swapchain) const;
-
   CreateInfo create_info_{};
   VkSurfaceKHR surface_{VK_NULL_HANDLE};
   Swapchain swapchain_;
