@@ -1,10 +1,12 @@
 #include <algorithm>
+#include <array>
+#include <limits>
+#include <cstdint>
 #include <quark/platform/window/IWindow.hpp>
 #include <quark/vk/presentation/details/swapchain.hpp>
 #include <stdexcept>
 #include <vector>
 #include <vulkan/vulkan_core.h>
-
 namespace quark::vk {
 
 namespace {
@@ -206,7 +208,7 @@ void Swapchain::create(const CreateInfo &ci) {
 void Swapchain::reset() noexcept {
   // Destroy views
   if (device_ != VK_NULL_HANDLE) {
-    for (VkImageView v : image_views_) {
+    for (VkImageView const v : image_views_) {
       if (v != VK_NULL_HANDLE) {
         vkDestroyImageView(device_, v, /*pAllocator=*/nullptr);
       }

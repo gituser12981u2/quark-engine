@@ -1,4 +1,10 @@
 #include "vulkan_context.hpp"
+#include "quark/platform/window/IWindow.hpp"
+#include "quark/utils/diagnostic.hpp"
+#include "quark/utils/error_types.hpp"
+#include "quark/utils/result.hpp"
+#include "quark/vk/device/details/device.hpp"
+#include "quark/vk/instance/details/instance.hpp"
 
 #include <algorithm>
 #include <array>
@@ -9,13 +15,13 @@
 #include <memory>
 #include <quark/platform/window/glfw_window.hpp>
 #include <quark/platform/window/interface_query.hpp>
-#include <quark/vk/diagnostic_prelude.hpp>
 #include <quark/vk/instance/instance_bundle.hpp>
 #include <quark/vk/surface_source.hpp>
 #include <stdexcept>
 #include <string_view>
+#include <utility>
 #include <vector>
-#include <vulkan/vulkan.h>
+#include <vulkan/vulkan_core.h>
 
 using std::array;
 using std::vector;
@@ -190,7 +196,7 @@ util::Status VulkanContext::init() {
 
 VulkanContext::~VulkanContext() {
   if (device_.valid()) {
-    VkDevice logical_device = device_.vk_device();
+    VkDevice const logical_device = device_.vk_device();
     vkDeviceWaitIdle(logical_device);
 
     for (auto index{0UZ}; index < kMaxFramesInFlight; ++index) {

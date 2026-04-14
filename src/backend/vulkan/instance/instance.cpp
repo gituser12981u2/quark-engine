@@ -1,3 +1,9 @@
+#include "quark/utils/details/diagnostic_details.hpp"
+#include "quark/utils/diagnostic.hpp"
+#include "quark/utils/error_types.hpp"
+#include "quark/utils/result.hpp"
+#include "quark/vk/instance/details/debug_messenger.hpp"
+#include "quark/vk/vk_error.hpp"
 #include <cstdint>
 #include <cstring>
 #include <quark/vk/diagnostic_prelude.hpp>
@@ -5,7 +11,8 @@
 #include <source_location>
 #include <string_view>
 #include <vector>
-#include <vulkan/vulkan.h>
+#include <vulkan/vk_platform.h>
+#include <vulkan/vulkan_core.h>
 
 namespace quark::vk {
 
@@ -122,7 +129,7 @@ util::Status Instance::build_instance_extensions_(
   out_enable_debug_utils = false;
 
   bool enable_portability = false;
-#if defined(__APPLE__)
+#ifdef __APPLE__
   constexpr bool portability_required = true;
 #else
   constexpr bool portability_required = false;
@@ -166,7 +173,7 @@ util::Status Instance::create(const CreateInfo &ci) {
                  VK_VERSION_PATCH(ci.api_version));
 
   uint32_t loader_ver = VK_API_VERSION_1_0;
-#if defined(VK_VERSION_1_1)
+#ifdef VK_VERSION_1_1
   vkEnumerateInstanceVersion(&loader_ver);
 #endif
   QUARK_LOG_INFO("loader api version: {}.{}.{}", VK_VERSION_MAJOR(loader_ver),

@@ -81,7 +81,7 @@ An opaque handle type shall:
 
 ```cpp
 template <class H>
-concept OpaqueHandle = 
+concept OpaqueHandle =
     std::equality_comparable<H> &&
     requires(H handle) {
         { handle.index } -> std::convertible_to<uint32_t>;
@@ -107,10 +107,10 @@ struct GenericHandle final {
 
 #### 4.2.2 Requirements
 
-A GenericHandle<Tag>:
+`GenericHandle<Tag>`:
 
-- Satisfies OpaqueHandle
-- Is a distinct type for each unique Tag
+- Satisfies `OpaqueHandle`
+- Is a distinct type for each unique `Tag`
 - Has no implicit conversions between different tag instantiations
 
 #### 4.2.3 Tag Types
@@ -126,6 +126,32 @@ struct InstanceHandleTag;
 using FrameHandle = GenericHandle<FrameHandleTag>;
 using InstanceHandle = GenericHandle<InstanceHandleTag>;
 ```
+
+### 4.3 Registry Storage and Allocation
+
+#### 4.3.1 Definition
+
+Registries using opaque generational handles may allocate slot storage and
+free lists from a caller supplied allocator or memory resource.
+
+#### 4.3.2 Requirements
+
+A registry implementation should:
+
+- Default to a system allocator when no allocator is supplied
+- Allow short lived backing storage such as a bump allocator for
+temporary registries
+- Preserve handle generation semantics regardless of allocator choice
+
+#### 4.3.3 Rationale
+
+Handle identity and stale reference detection are orthogonal to the
+allocation strategy used by the registry itself. Allowing allocator
+injection makes the same registry design suitable for:
+
+- Long lived systems using the system allocator
+- Frame or scratch scoped registries backed by a bump allocator
+- Tooling or tests that want explicit control over transient memory
 
 #### 4.2.3 Rationale
 
@@ -176,6 +202,12 @@ Handles:
 - Do not own resources
 - Do not extend resource lifetime
 - May outlive the underlying resource
+
+Registry storage may itself be temporary when backed by a short term
+allocator. Destroying or resetting that storage invalidates the registry
+as a whole, but does not change the semantic meaning of handles already
+issued: they remain non-owning values and require the owning system for
+validation.
 
 Using a handle after destruction is defined behavior only
 insofar as the owning system detects and rejects it.

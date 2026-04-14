@@ -1,5 +1,6 @@
-#include <fmt/printf.h>
-#include <quark/utils/diagnostic.hpp>
+#include "quark/utils/details/diagnostic_details.hpp"
+#include "quark/utils/error_types.hpp"
+#include <fmt/base.h>
 #include <string_view>
 
 namespace util {

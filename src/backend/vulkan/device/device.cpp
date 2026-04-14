@@ -1,12 +1,15 @@
-#include <algorithm>
+#include "quark/utils/diagnostic.hpp"
+#include "quark/utils/error_types.hpp"
+#include "quark/utils/result.hpp"
+#include "quark/vk/vk_error.hpp"
 #include <cstdint>
 #include <cstring>
 #include <optional>
 #include <quark/vk/device/details/device.hpp>
 #include <quark/vk/diagnostic_prelude.hpp>
 #include <set>
+#include <source_location>
 #include <vector>
-#include <vulkan/vulkan.h>
 #include <vulkan/vulkan_core.h>
 
 using std::vector;
@@ -79,7 +82,7 @@ has_required_extensions(VkPhysicalDevice physical_device,
   vector<VkExtensionProperties> props;
   QUARK_TRY_ASSIGN(props, enumerate_device_extensions(physical_device));
 
-  for (const char *name : required_extensions) {
+  for (const char *const name : required_extensions) {
     QUARK_ENSURE(name != nullptr, QUARK_ERR(util::Errc::InvalidArg,
                                             "required extension name is null"));
     QUARK_ENSURE(
@@ -240,7 +243,7 @@ build_device_extensions(VkPhysicalDevice physical_device,
 
   vector<const char *> enabled = required;
 
-#if defined(__APPLE__)
+#ifdef __APPLE__
   // MoltenVK usually needs portability subset;
   constexpr const char *kPortabilitySubset = "VK_KHR_portability_subset";
   if (has_device_extension_props(props, kPortabilitySubset) &&

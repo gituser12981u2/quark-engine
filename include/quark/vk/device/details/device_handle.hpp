@@ -1,21 +1,11 @@
 #pragma once
 
-#include <cstdint>
+#include <quark/utils/generic_handle.hpp>
 
 namespace quark::vk {
 
-struct DeviceHandle {
-  uint32_t index = 0xFFFF'FFFFU;
-  uint32_t generation = 0;
+struct DeviceHandleTag;
 
-  [[nodiscard]] constexpr bool valid() const noexcept {
-    return index != 0xFFFF'FFFFU;
-  }
-
-  [[nodiscard]] friend constexpr bool operator==(DeviceHandle a,
-                                                 DeviceHandle b) noexcept {
-    return a.index == b.index && a.generation == b.generation;
-  }
-};
+using DeviceHandle = util::GenericHandle<DeviceHandleTag>;
 
 } // namespace quark::vk
