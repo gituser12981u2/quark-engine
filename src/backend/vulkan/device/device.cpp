@@ -37,11 +37,6 @@ util::Status Device::create(const Device::CreateInfo &ci) {
   capabilities_.supported_features = 0;
   capabilities_.enabled_features = 0;
 
-  QUARK_LOG_INFO("physical device vulkan version: {}.{}.{}",
-                 VK_VERSION_MAJOR(capabilities_.api_version),
-                 VK_VERSION_MINOR(capabilities_.api_version),
-                 VK_VERSION_PATCH(capabilities_.api_version));
-
   constexpr float queue_priority{1.0F};
   const std::set<uint32_t> unique_queue_families{graphics_queue_family_index_,
                                                  present_queue_family_index_};

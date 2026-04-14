@@ -309,9 +309,11 @@ util::Status VulkanContext::create_device() {
 
   VkPhysicalDeviceProperties properties{};
   vkGetPhysicalDeviceProperties(device_.vk_physical_device(), &properties);
-  QUARK_LOG_INFO("Selected GPU: {} (api {}.{})", properties.deviceName,
+  QUARK_LOG_INFO("Selected GPU: {} (physical device api {}.{}.{})",
+                 properties.deviceName,
                  VK_VERSION_MAJOR(device_.capabilities().api_version),
-                 VK_VERSION_MINOR(device_.capabilities().api_version));
+                 VK_VERSION_MINOR(device_.capabilities().api_version),
+                 VK_VERSION_PATCH(device_.capabilities().api_version));
 
   QUARK_OK();
 }
