@@ -1,4 +1,4 @@
-#include "quark/utils/details/diagnostic_details.hpp"
+
 #include "quark/utils/diagnostic.hpp"
 #include "quark/utils/error_types.hpp"
 #include "quark/utils/result.hpp"

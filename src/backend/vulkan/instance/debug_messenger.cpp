@@ -1,4 +1,3 @@
-#include "quark/utils/error_types.hpp"
 #include "quark/utils/result.hpp"
 #include <bit>
 #include <quark/utils/diagnostic.hpp>

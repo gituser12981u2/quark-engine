@@ -1,4 +1,4 @@
-#include "quark/utils/result.hpp"
+
 #include <memory_resource>
 #include <quark/utils/diagnostic.hpp>
 #include <quark/vk/instance/details/debug_messenger.hpp>
@@ -6,7 +6,6 @@
 #include <quark/vk/instance/details/instance_handle.hpp>
 #include <quark/vk/instance/details/instance_registry.hpp>
 #include <quark/vk/instance/instance_bundle.hpp>
-#include <vulkan/vulkan_core.h>
 
 namespace quark::vk {
 

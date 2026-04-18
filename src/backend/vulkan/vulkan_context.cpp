@@ -5,7 +5,6 @@
 #include "quark/utils/result.hpp"
 #include "quark/vk/device/details/device.hpp"
 #include "quark/vk/instance/details/instance.hpp"
-
 #include <algorithm>
 #include <array>
 #include <cstdint>
@@ -19,7 +18,6 @@
 #include <quark/vk/surface_source.hpp>
 #include <stdexcept>
 #include <string_view>
-#include <utility>
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
@@ -196,7 +194,7 @@ util::Status VulkanContext::init() {
 
 VulkanContext::~VulkanContext() {
   if (device_.valid()) {
-    VkDevice const logical_device = device_.vk_device();
+    VkDevice logical_device = device_.vk_device();
     vkDeviceWaitIdle(logical_device);
 
     for (auto index{0UZ}; index < kMaxFramesInFlight; ++index) {
@@ -243,7 +241,7 @@ util::Status VulkanContext::run() {
 }
 
 void VulkanContext::create_window() {
-  auto window = std::make_unique<platform::GlfwWindow>();
+  window_ = std::make_unique<platform::GlfwWindow>();
 
   platform::IWindow::CreateInfo ci{};
   ci.width = kWindowWidth;
@@ -251,8 +249,7 @@ void VulkanContext::create_window() {
   ci.title = kWindowTitle.data();
   ci.resizable = true;
 
-  window->create(ci);
-  window_ = std::move(window);
+  window_->create(ci);
 }
 
 util::Status VulkanContext::create_instance() {
