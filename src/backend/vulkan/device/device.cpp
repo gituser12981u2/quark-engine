@@ -244,10 +244,12 @@ build_device_extensions(VkPhysicalDevice physical_device,
   vector<const char *> enabled = required;
 
 #ifdef __APPLE__
+#include <algorithm>
   // MoltenVK usually needs portability subset;
   constexpr const char *kPortabilitySubset = "VK_KHR_portability_subset";
   if (has_device_extension_props(props, kPortabilitySubset) &&
-      !std::ranges::contains(enabled, kPortabilitySubset)) {
+      std::find(enabled.begin(), enabled.end(), kPortabilitySubset) ==
+          enabled.end()) {
     enabled.push_back(kPortabilitySubset);
     QUARK_LOG_INFO("portability subset: enabled");
   }

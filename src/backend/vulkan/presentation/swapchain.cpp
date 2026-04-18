@@ -1,7 +1,7 @@
 #include <algorithm>
 #include <array>
-#include <limits>
 #include <cstdint>
+#include <limits>
 #include <quark/platform/window/IWindow.hpp>
 #include <quark/vk/presentation/details/swapchain.hpp>
 #include <stdexcept>
@@ -95,11 +95,6 @@ VkExtent2D choose_extent(const platform::IWindow &window,
   return actual_extent;
 }
 
-void throw_if_vk(VkResult result, const char *what) {
-  if (result != VK_SUCCESS) {
-    throw std::runtime_error(what);
-  }
-}
 
 } // namespace
 
@@ -208,7 +203,7 @@ void Swapchain::create(const CreateInfo &ci) {
 void Swapchain::reset() noexcept {
   // Destroy views
   if (device_ != VK_NULL_HANDLE) {
-    for (VkImageView const v : image_views_) {
+    for (VkImageView v : image_views_) {
       if (v != VK_NULL_HANDLE) {
         vkDestroyImageView(device_, v, /*pAllocator=*/nullptr);
       }
