@@ -95,7 +95,6 @@ VkExtent2D choose_extent(const platform::IWindow &window,
   return actual_extent;
 }
 
-
 } // namespace
 
 void Swapchain::create(const CreateInfo &ci) {

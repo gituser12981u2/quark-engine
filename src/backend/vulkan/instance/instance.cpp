@@ -1,7 +1,4 @@
 
-#include "quark/utils/diagnostic.hpp"
-#include "quark/utils/error_types.hpp"
-#include "quark/utils/result.hpp"
 #include "quark/vk/instance/details/debug_messenger.hpp"
 #include "quark/vk/vk_error.hpp"
 #include <cstdint>

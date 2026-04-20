@@ -12,7 +12,7 @@
 #include <vector>
 #include <vulkan/vulkan_core.h>
 #ifdef __APPLE__
-#include <algorithm>
+#include <algorithm> // for std::find, c++23 'std::ranges::contains' is not in apple clang, irritating!
 #endif
 
 using std::vector;
