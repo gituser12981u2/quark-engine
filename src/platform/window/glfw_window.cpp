@@ -1,6 +1,6 @@
+#include <vulkan/vulkan_core.h>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
-#include <cstddef>
 #include <cstdint>
 #include <new>
 #include <quark/platform/window/IWindow.hpp>
@@ -22,7 +22,7 @@ public:
   [[nodiscard]] std::vector<const char *>
   required_instance_extensions() const override {
     uint32_t count = 0;
-    const char **exts = glfwGetRequiredInstanceExtensions(&count);
+    const char **const exts = glfwGetRequiredInstanceExtensions(&count);
 
     if (exts == nullptr || count == 0) {
       throw std::runtime_error("glfwGetRequiredInstanceExtensions failed");
@@ -127,7 +127,7 @@ bool GlfwWindow::was_resized() const noexcept { return resized_; }
 void GlfwWindow::clear_resized() noexcept { resized_ = false; }
 
 void *GlfwWindow::query_interface(InterfaceId id) noexcept {
-  if (void *cached = iface_.find(id)) {
+  if (void *const cached = iface_.find(id)) {
     return cached;
   }
 
@@ -152,7 +152,7 @@ void *GlfwWindow::query_interface(InterfaceId id) noexcept {
 }
 
 const void *GlfwWindow::query_interface(InterfaceId id) const noexcept {
-  if (const void *cached = iface_.find(id)) {
+  if (const void *const cached = iface_.find(id)) {
     return cached;
   }
 

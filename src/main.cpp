@@ -1,4 +1,5 @@
 #include "backend/vulkan/vulkan_context.hpp"
+#include "quark/utils/error_types.hpp"
 
 #include <array>
 #include <exception>

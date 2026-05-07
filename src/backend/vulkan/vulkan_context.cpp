@@ -1,5 +1,10 @@
 #include "vulkan_context.hpp"
-
+#include "quark/platform/window/IWindow.hpp"
+#include "quark/utils/diagnostic.hpp"
+#include "quark/utils/error_types.hpp"
+#include "quark/utils/result.hpp"
+#include "quark/vk/device/details/device.hpp"
+#include "quark/vk/instance/details/instance.hpp"
 #include <algorithm>
 #include <array>
 #include <cstdint>
@@ -9,13 +14,12 @@
 #include <memory>
 #include <quark/platform/window/glfw_window.hpp>
 #include <quark/platform/window/interface_query.hpp>
-#include <quark/vk/diagnostic_prelude.hpp>
 #include <quark/vk/instance/instance_bundle.hpp>
 #include <quark/vk/surface_source.hpp>
 #include <stdexcept>
 #include <string_view>
 #include <vector>
-#include <vulkan/vulkan.h>
+#include <vulkan/vulkan_core.h>
 
 using std::array;
 using std::vector;
@@ -237,7 +241,7 @@ util::Status VulkanContext::run() {
 }
 
 void VulkanContext::create_window() {
-  auto window = std::make_unique<platform::GlfwWindow>();
+  window_ = std::make_unique<platform::GlfwWindow>();
 
   platform::IWindow::CreateInfo ci{};
   ci.width = kWindowWidth;
@@ -245,8 +249,7 @@ void VulkanContext::create_window() {
   ci.title = kWindowTitle.data();
   ci.resizable = true;
 
-  window->create(ci);
-  window_ = std::move(window);
+  window_->create(ci);
 }
 
 util::Status VulkanContext::create_instance() {

@@ -8,7 +8,7 @@
 #include <quark/vk/device/device_bundle.hpp>
 #include <quark/vk/instance/instance_bundle.hpp>
 #include <vector>
-#include <vulkan/vulkan.h>
+#include <vulkan/vulkan_core.h>
 
 using std::array;
 using std::vector;

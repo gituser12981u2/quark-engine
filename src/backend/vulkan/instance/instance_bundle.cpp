@@ -1,4 +1,5 @@
-#include <cstddef>
+
+#include <memory_resource>
 #include <quark/utils/diagnostic.hpp>
 #include <quark/vk/instance/details/debug_messenger.hpp>
 #include <quark/vk/instance/details/instance.hpp>
@@ -7,6 +8,9 @@
 #include <quark/vk/instance/instance_bundle.hpp>
 
 namespace quark::vk {
+
+InstanceBundle::InstanceBundle(std::pmr::memory_resource *memory_resource)
+    : registry_(memory_resource) {}
 
 util::Status InstanceBundle::create(const Instance::CreateInfo &ci) {
   destroy();
@@ -21,12 +25,12 @@ void InstanceBundle::destroy() noexcept {
 }
 
 VkInstance InstanceBundle::vk_instance() const noexcept {
-  const Instance *instance = registry_.get(handle_);
+  const Instance *const instance = registry_.get(handle_);
   return (instance != nullptr) ? instance->handle() : VK_NULL_HANDLE;
 }
 
 const DebugMessenger *InstanceBundle::debug_messenger() const noexcept {
-  const Instance *instance = registry_.get(handle_);
+  const Instance *const instance = registry_.get(handle_);
   if (instance == nullptr) {
     return nullptr;
   }

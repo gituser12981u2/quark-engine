@@ -4,7 +4,7 @@ compile_commands.json
 .cache
 logs/
 CMakeFiles/
-
+latex/
 # macOS
 .DS_Store
 
@@ -13,3 +13,5 @@ vcpkg/buildtrees/
 vcpkg/downloads/
 vcpkg/packages/
 vcpkg/installed/
+.idea
+\html/

@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cstddef>
 #include <quark/utils/raii.hpp>
 #include <quark/utils/result.hpp>
 #include <vulkan/vulkan.h>
