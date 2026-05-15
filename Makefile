@@ -114,12 +114,14 @@ deps:
 	else \
 		echo "ninja already installed"; \
 	fi; \
-	if [ ! -f "vcpkg/bootstrap-vcpkg.sh" ] && [ ! -f "vcpkg/bootstrap-vcpkg.bat" ]; then \
+	if git submodule status -- vcpkg >/dev/null 2>&1; then \
+		git submodule update --init --recursive vcpkg; \
+	elif [ ! -f "vcpkg/bootstrap-vcpkg.sh" ] && [ ! -f "vcpkg/bootstrap-vcpkg.bat" ]; then \
 		echo "vcpkg checkout not found; cloning..."; \
 		rm -rf vcpkg; \
 		git clone https://github.com/microsoft/vcpkg.git vcpkg; \
 	else \
-		git submodule update --init --recursive; \
+		echo "vcpkg checkout already present"; \
 	fi; \
 	if [ -f "vcpkg/bootstrap-vcpkg.sh" ]; then \
 		if [ ! -f "vcpkg/vcpkg" ]; then \
@@ -143,7 +145,7 @@ deps:
 vcpkg-install: deps
 	./vcpkg/vcpkg install --triplet $(VCPKG_TRIPLET)
 
-configure:
+configure: deps
 	cmake --preset $(CMAKE_CONFIGURE_PRESET)
 	./scripts/sync_compile_commands.sh $(BUILD_DIR)
 
