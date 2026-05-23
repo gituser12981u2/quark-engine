@@ -1,7 +1,5 @@
 #pragma once
 
-#include <memory_resource>
-#include <quark/utils/allocator.hpp>
 #include <quark/utils/raii.hpp>
 #include <quark/utils/result.hpp>
 #include <quark/vk/instance/details/debug_messenger.hpp>
@@ -15,7 +13,6 @@ namespace quark::vk {
 class InstanceBundle final {
 public:
   InstanceBundle() = default;
-  explicit InstanceBundle(std::pmr::memory_resource *memory_resource);
   ~InstanceBundle() { destroy(); }
 
   // TODO: assert safe move semantics in instance and debug messenger
