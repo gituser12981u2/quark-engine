@@ -50,8 +50,6 @@ CheckOptions:
     value: true
   - key: cppcoreguidelines-rvalue-reference-param-not-moved.IgnoreUnnamedParams
     value: true
-  - key: readability-convert-member-functions-to-static
-    value: false
 
   - key: modernize-use-auto.MinTypeNameLength
     value: 5

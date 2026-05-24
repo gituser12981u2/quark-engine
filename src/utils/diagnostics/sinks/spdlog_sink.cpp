@@ -1,5 +1,4 @@
-#include "quark/utils/error_types.hpp"
-#include <memory>
+#include <quark/utils/diagnostic.hpp>
 #include <quark/utils/sinks/spdlog_sink.hpp>
 #include <spdlog/common.h>
 #include <spdlog/logger.h>
@@ -107,8 +106,8 @@ void spdlog_sink(void *ctx_ptr, const util::DiagnosticEvent &e) noexcept {
   }
 
   const auto &w = e.where;
-  spdlog::source_loc const loc{w.file_name(), static_cast<int>(w.line()),
-                               w.function_name()};
+  spdlog::source_loc loc{w.file_name(), static_cast<int>(w.line()),
+                         w.function_name()};
 
   if (!e.module.empty()) {
     ctx->file->log(loc, to_spd(e.severity), "[{}] {}", e.module, e.msg);

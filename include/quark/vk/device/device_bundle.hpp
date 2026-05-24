@@ -1,8 +1,6 @@
 #pragma once
 
 #include "quark/utils/result.hpp"
-#include <memory_resource>
-#include <quark/utils/allocator.hpp>
 #include <quark/utils/raii.hpp>
 #include <quark/vk/device/details/device.hpp>
 #include <quark/vk/device/details/device_handle.hpp>
@@ -13,10 +11,7 @@ namespace quark::vk {
 class DeviceBundle final {
 public:
   DeviceBundle() = default;
-  explicit DeviceBundle(std::pmr::memory_resource *memory_resource);
   explicit DeviceBundle(const Device::CreateInfo &ci);
-  DeviceBundle(const Device::CreateInfo &ci,
-               std::pmr::memory_resource *memory_resource);
   ~DeviceBundle() { destroy(); }
 
   QUARK_MOVE_ONLY(DeviceBundle);

@@ -14,7 +14,7 @@ using SinkList = std::vector<DiagnosticSink>;
 void set_diagnostic_sinks(std::span<const DiagnosticSink> sinks) noexcept;
 std::shared_ptr<const SinkList> diagnostic_sinks_snapshot() noexcept;
 
-void report(const DiagnosticEvent & /*e*/) noexcept;
+void report(const DiagnosticEvent &) noexcept;
 
 template <class T>
 inline void report_if_error(const util::Result<T> &r) noexcept {

@@ -1,4 +1,4 @@
-#include <bit>
+#include <quark/utils/diagnostic.hpp>
 #include <quark/vk/diagnostic_prelude.hpp>
 #include <quark/vk/instance/details/debug_messenger.hpp>
 #include <vulkan/vulkan_core.h>

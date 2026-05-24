@@ -1,12 +1,10 @@
 #include <algorithm>
-#include <array>
-#include <cstdint>
-#include <limits>
 #include <quark/platform/window/IWindow.hpp>
 #include <quark/vk/presentation/details/swapchain.hpp>
 #include <stdexcept>
 #include <vector>
 #include <vulkan/vulkan_core.h>
+
 namespace quark::vk {
 
 namespace {
@@ -93,6 +91,12 @@ VkExtent2D choose_extent(const platform::IWindow &window,
                  capabilities.maxImageExtent.height);
 
   return actual_extent;
+}
+
+void throw_if_vk(VkResult result, const char *what) {
+  if (result != VK_SUCCESS) {
+    throw std::runtime_error(what);
+  }
 }
 
 } // namespace
