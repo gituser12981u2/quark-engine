@@ -8,7 +8,7 @@
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
-namespace quark::vk {
+namespace quark::vk::details {
 
 class Instance final {
 public:
@@ -23,6 +23,8 @@ public:
 
     // Validation layers
     std::vector<const char *> layers;
+
+    const VkAllocationCallbacks *allocator = nullptr;
 
     bool enable_debug_messenger = false;
     DebugMessenger::CreateInfo debug{};
@@ -65,7 +67,8 @@ private:
       VkInstanceCreateFlags &out_flags, bool &out_enable_debug_utils);
 
   VkInstance instance_ = VK_NULL_HANDLE;
+  const VkAllocationCallbacks *alloc_ = nullptr;
   DebugMessenger debug_messenger_;
 };
 
-} // namespace quark::vk
+} // namespace quark::vk::details

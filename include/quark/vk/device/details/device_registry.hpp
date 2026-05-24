@@ -8,7 +8,7 @@
 #include <quark/utils/result.hpp>
 #include <vector>
 
-namespace quark::vk {
+namespace quark::vk::details {
 
 class DeviceRegistry final {
 public:
@@ -41,4 +41,4 @@ private:
   std::vector<uint32_t> free_;
 };
 
-} // namespace quark::vk
+} // namespace quark::vk::details

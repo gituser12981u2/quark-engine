@@ -7,7 +7,7 @@
 #include <vector>
 #include <vulkan/vulkan.h>
 
-namespace quark::vk {
+namespace quark::vk::details {
 
 namespace {
 
@@ -148,7 +148,7 @@ util::Status Instance::build_instance_extensions_(
                          "debug utils", /*required=*/true));
   }
 
-  return {};
+  QUARK_OK();
 }
 
 util::Status Instance::create(const CreateInfo &ci) {
@@ -212,14 +212,14 @@ util::Status Instance::create(const CreateInfo &ci) {
   }
 
   VkInstance instance = VK_NULL_HANDLE;
-  QUARK_VK_TRY(vkCreateInstance(&create, /*pAllocator=*/nullptr, &instance));
+  QUARK_VK_TRY(vkCreateInstance(&create, alloc_, &instance));
   instance_ = instance;
 
   if (ci.enable_debug_messenger && enable_debug_utils) {
     QUARK_TRY_STATUS(debug_messenger_.create(instance_, dbg));
   }
 
-  return {};
+  QUARK_OK();
 }
 
 void Instance::destroy() noexcept {
@@ -231,4 +231,4 @@ void Instance::destroy() noexcept {
   }
 }
 
-} // namespace quark::vk
+} // namespace quark::vk::details

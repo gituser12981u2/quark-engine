@@ -2,7 +2,7 @@
 
 #include <cstdint>
 #include <quark/platform/window/IWindow.hpp>
-#include <quark/utils/raii.hpp>
+#include <quark/utils/result.hpp>
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
@@ -30,9 +30,12 @@ public:
   Swapchain() = default;
   ~Swapchain() { reset(); }
 
-  QUARK_MOVE_ONLY(Swapchain);
+  Swapchain(const Swapchain &) = delete;
+  Swapchain &operator=(const Swapchain &) = delete;
+  Swapchain(Swapchain &&other) noexcept;
+  Swapchain &operator=(Swapchain &&other) noexcept;
 
-  void create(const CreateInfo &ci);
+  [[nodiscard]] util::Status create(const CreateInfo &ci);
   void reset() noexcept;
 
   [[nodiscard]] VkSwapchainKHR handle() const noexcept { return swapchain_; }

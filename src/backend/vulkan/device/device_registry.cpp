@@ -5,7 +5,7 @@
 #include <quark/vk/device/details/device_handle.hpp>
 #include <quark/vk/device/details/device_registry.hpp>
 
-namespace quark::vk {
+namespace quark::vk::details {
 
 bool DeviceRegistry::matches_(DeviceHandle handle, const Slot &s) noexcept {
   return handle.valid() && s.live && s.generation == handle.generation;
@@ -94,4 +94,4 @@ const Device *DeviceRegistry::get(DeviceHandle handle) const noexcept {
   return &slots_[handle.index].device;
 }
 
-} // namespace quark::vk
+} // namespace quark::vk::details

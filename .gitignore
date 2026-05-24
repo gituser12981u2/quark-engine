@@ -4,10 +4,12 @@ compile_commands.json
 .cache
 logs/
 CMakeFiles/
-
+latex
+html
 # macOS
 .DS_Store
-
+.idea
+ # i was trying jet brains lol
 # vcpkg
 vcpkg/buildtrees/
 vcpkg/downloads/

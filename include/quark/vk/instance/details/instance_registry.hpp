@@ -8,7 +8,7 @@
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
-namespace quark::vk {
+namespace quark::vk::details {
 
 class InstanceRegistry final {
 public:
@@ -42,4 +42,4 @@ private:
   std::vector<uint32_t> free_;
 };
 
-} // namespace quark::vk
+} // namespace quark::vk::details

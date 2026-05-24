@@ -11,8 +11,9 @@ include(QuarkOptions)
 
 find_package(Vulkan REQUIRED)
 if(NOT Vulkan_FOUND)
-  message(FATAL_ERROR
-    "Vulkan SDK/loader was not found. If you use vcpkg, ensure the vcpkg submodule is initialised and bootstrapped (make deps) and that dependencies from vcpkg.json are installed for the active triplet."
+  message(
+    FATAL_ERROR
+      "Vulkan SDK/loader was not found. If you use vcpkg, ensure the vcpkg submodule is initialised and bootstrapped (make deps) and that dependencies from vcpkg.json are installed for the active triplet."
   )
 endif()
 
