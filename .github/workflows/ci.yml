@@ -32,6 +32,40 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Configure headless graphics environment (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          echo "DISPLAY=:99" >> "$GITHUB_ENV"
+          echo "LIBGL_ALWAYS_SOFTWARE=1" >> "$GITHUB_ENV"
+          echo "MESA_LOADER_DRIVER_OVERRIDE=llvmpipe" >> "$GITHUB_ENV"
+          if [ -f /usr/share/vulkan/icd.d/lvp_icd.x86_64.json ]; then
+            echo "VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json" >> "$GITHUB_ENV"
+          fi
+          Xvfb :99 -screen 0 1280x720x24 -nolisten tcp &
+
+      - name: Configure headless graphics environment (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          echo "LIBGL_ALWAYS_SOFTWARE=1" >> "$GITHUB_ENV"
+          echo "MESA_LOADER_DRIVER_OVERRIDE=llvmpipe" >> "$GITHUB_ENV"
+          vk_icd=$(find "$GITHUB_WORKSPACE" /opt/homebrew /usr/local -name 'MoltenVK_icd.json' -o -name 'vk_icd*.json' 2>/dev/null | head -n 1)
+          if [ -n "$vk_icd" ]; then
+            echo "VK_ICD_FILENAMES=$vk_icd" >> "$GITHUB_ENV"
+          fi
+
+      - name: Configure headless graphics environment (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Add-Content -Path $env:GITHUB_ENV -Value 'LIBGL_ALWAYS_SOFTWARE=1'
+          Add-Content -Path $env:GITHUB_ENV -Value 'MESA_LOADER_DRIVER_OVERRIDE=llvmpipe'
+          $vkIcd = Get-ChildItem -Path $env:GITHUB_WORKSPACE, $env:VCPKG_ROOT, 'C:\VulkanSDK' -Recurse -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -match '^(MoltenVK_)?vk_icd.*\.json$' } |
+            Select-Object -First 1
+          if ($vkIcd) {
+            Add-Content -Path $env:GITHUB_ENV -Value "VK_ICD_FILENAMES=$($vkIcd.FullName)"
+          }
+
       - name: Install dependencies (Ubuntu)
         if: runner.os == 'Linux'
         run: |
@@ -50,16 +84,6 @@ jobs:
             xorg-dev \
             libglu1-mesa-dev \
             pkg-config
-
-      - name: Configure headless graphics environment (Ubuntu)
-        if: runner.os == 'Linux'
-        run: |
-          echo "DISPLAY=:99" >> "$GITHUB_ENV"
-          echo "LIBGL_ALWAYS_SOFTWARE=1" >> "$GITHUB_ENV"
-          if [ -f /usr/share/vulkan/icd.d/lvp_icd.x86_64.json ]; then
-            echo "VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json" >> "$GITHUB_ENV"
-          fi
-          Xvfb :99 -screen 0 1280x720x24 -nolisten tcp &
 
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
