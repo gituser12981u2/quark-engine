@@ -41,11 +41,25 @@ jobs:
             cmake \
             g++ \
             clang \
+            xvfb \
+            libvulkan1 \
+            mesa-vulkan-drivers \
+            vulkan-tools \
             libxinerama-dev \
             libxcursor-dev \
             xorg-dev \
             libglu1-mesa-dev \
             pkg-config
+
+      - name: Configure headless graphics environment (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          echo "DISPLAY=:99" >> "$GITHUB_ENV"
+          echo "LIBGL_ALWAYS_SOFTWARE=1" >> "$GITHUB_ENV"
+          if [ -f /usr/share/vulkan/icd.d/lvp_icd.x86_64.json ]; then
+            echo "VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json" >> "$GITHUB_ENV"
+          fi
+          Xvfb :99 -screen 0 1280x720x24 -nolisten tcp &
 
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
