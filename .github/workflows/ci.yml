@@ -59,9 +59,12 @@ jobs:
         run: |
           Add-Content -Path $env:GITHUB_ENV -Value 'LIBGL_ALWAYS_SOFTWARE=1'
           Add-Content -Path $env:GITHUB_ENV -Value 'MESA_LOADER_DRIVER_OVERRIDE=llvmpipe'
-          $vkIcd = Get-ChildItem -Path $env:GITHUB_WORKSPACE, $env:VCPKG_ROOT, 'C:\VulkanSDK' -Recurse -File -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -match '^(MoltenVK_)?vk_icd.*\.json$' } |
-            Select-Object -First 1
+          $searchPaths = @($env:GITHUB_WORKSPACE, $env:VCPKG_ROOT, 'C:\VulkanSDK') | Where-Object { $_ -and (Test-Path $_) }
+          $vkIcd = if ($searchPaths) {
+            Get-ChildItem -Path $searchPaths -Recurse -File -ErrorAction SilentlyContinue |
+              Where-Object { $_.Name -match '^(MoltenVK_)?vk_icd.*\.json$' } |
+              Select-Object -First 1
+          }
           if ($vkIcd) {
             Add-Content -Path $env:GITHUB_ENV -Value "VK_ICD_FILENAMES=$($vkIcd.FullName)"
           }
