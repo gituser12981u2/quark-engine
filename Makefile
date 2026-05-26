@@ -157,6 +157,7 @@ vcpkg-install: deps
 configure:
 	cmake --preset $(CMAKE_CONFIGURE_PRESET) \
 		-DQUARK_HEADLESS=$(HEADLESS) \
+		-DVCPKG_MANIFEST_FEATURES=window
 		-B $(BUILD_DIR)
 	./scripts/sync_compile_commands.sh $(BUILD_DIR)
 

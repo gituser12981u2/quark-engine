@@ -4,6 +4,10 @@ on:
   push:
   pull_request:
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     strategy:
@@ -80,7 +84,7 @@ jobs:
           if (!(Test-Path "vcpkg\vcpkg.exe")) { cd vcpkg; .\bootstrap-vcpkg.bat; cd .. }
 
       - name: Configure
-        run: cmake --preset ${{ matrix.configure_preset }} -DQUARK_HEADLESS=ON
+        run: cmake --preset ${{ matrix.configure_preset }} -DQUARK_HEADLESS=ON -DVCPKG_MANIFEST_FEATURES=headless
 
       - name: Build
         run: cmake --build --preset ${{ matrix.configure_preset }}
