@@ -19,7 +19,7 @@
             "wayland"
           ]
         },
-        "glfw3",
+        "glfw3"
       ]
     },
     "headless": {
