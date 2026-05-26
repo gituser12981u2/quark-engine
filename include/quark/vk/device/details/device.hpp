@@ -48,6 +48,10 @@ public:
     return present_queue_;
   }
 
+  [[nodiscard]] bool has_present_queu() const noexcept {
+    return present_queue_ != VK_NULL_HANDLE;
+  }
+
   [[nodiscard]] uint32_t graphics_queue_family_index() const noexcept {
     return graphics_queue_family_index_;
   }
@@ -65,6 +69,7 @@ private:
     VkPhysicalDevice physical_device{VK_NULL_HANDLE};
     uint32_t graphics_queue_family_index{0};
     uint32_t present_queue_family_index{0};
+    bool has_present_queue{false};
   };
 
   static util::Result<DeviceSelection>

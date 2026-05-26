@@ -2,17 +2,23 @@
 
 #include <array>
 #include <cstdint>
-#include <memory>
+
 #include <quark/engine/retire/retirement_queue.hpp>
-#include <quark/platform/window/IWindow.hpp>
+
 #include <quark/utils/result.hpp>
 #include <quark/vk/device/device_bundle.hpp>
 #include <quark/vk/frame/frame_bundle.hpp>
 #include <quark/vk/instance/instance_bundle.hpp>
-#include <quark/vk/presentation/presenter_bundle.hpp>
+
 #include <quark/vk/sync/gpu_timeline.hpp>
 #include <vector>
 #include <vulkan/vulkan.h>
+
+#if !QUARK_HEADLESS
+#include <memory>
+#include <quark/platform/window/IWindow.hpp>
+#include <quark/vk/presentation/presenter_bundle.hpp>
+#endif
 
 using std::array;
 using std::vector;
@@ -39,17 +45,23 @@ private:
 
   util::Status init();
 
+#if !QUARK_HEADLESS
   void create_window();
+#endif
 
   util::Status create_instance();
   util::Status create_device();
   util::Status create_gpu_timeline();
-
-  util::Status create_presenter();
   void resolve_render_path();
+
+#if !QUARK_HEADLESS
+  util::Status create_presenter();
+#endif
 
   util::Status create_frame();
   util::Status create_retirement_queue();
+
+#if !QUARK_HEADLESS
   util::Status record_command_buffer(uint32_t image_index);
 
   util::Status create_render_pass();
@@ -62,11 +74,15 @@ private:
 
   void cleanup_swapchain();
   util::Status recreate_swapchain();
+#endif
 
-  std::unique_ptr<platform::IWindow> window_;
   InstanceBundle instance_;
   DeviceBundle device_;
+
+#if !QUARK_HEADLESS
+  std::unique_ptr<platform::IWindow> window_;
   PresenterBundle presenter_;
+#endif
 
   static constexpr uint32_t kMaxFramesInFlight{2};
 
@@ -80,12 +96,14 @@ private:
   PFN_vkCmdEndRendering cmd_end_rendering_{nullptr};
   PFN_vkCmdPipelineBarrier2 cmd_pipeline_barrier2_{nullptr};
 
+#if !QUARK_HEADLESS
   VkRenderPass render_pass_{VK_NULL_HANDLE};
   vector<VkFramebuffer> framebuffers_;
 
   vector<uint64_t> images_in_flight_;
   vector<bool> swapchain_images_initialized_;
   uint32_t current_frame_{0};
+#endif
 };
 
 } // namespace quark::vk

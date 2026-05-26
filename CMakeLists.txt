@@ -8,6 +8,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 include(QuarkOptions)
+include(QuarkFeatures)
 
 find_package(Vulkan REQUIRED)
 if(NOT Vulkan_FOUND)
@@ -17,9 +18,12 @@ if(NOT Vulkan_FOUND)
   )
 endif()
 
-find_package(glfw3 CONFIG REQUIRED)
 find_package(tl-expected CONFIG REQUIRED)
 find_package(fmt CONFIG REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
+
+if(NOT QUARK_HEADLESS)
+  find_package(glfw3 CONFIG REQUIRED)
+endif()
 
 add_subdirectory(src)
