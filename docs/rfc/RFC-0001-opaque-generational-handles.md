@@ -1,6 +1,6 @@
 # RFC: Opaque Generational Handles
 
-**Status:** Draft
+**Status:** Accepted
 **Author:** gituser12981u2
 **Target:** Internal Engine Architecture
 **Date:** March, 2026
