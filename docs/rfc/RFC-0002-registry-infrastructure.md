@@ -19,7 +19,7 @@ This RFC proposes:
 
 ## 2. Motivation
 
-Most bundles require a registry and most registries have the same mechanics:
+Many resource families require a registry and most registries have the same mechanics:
 
 - Slot storage
 - Free-list reuse
@@ -78,9 +78,9 @@ The retirement queue may be shared globally, by payload storage remains typed by
 ```cpp
 template <class T>
 concept MoveOnlyNoexcept =
-    std::moveable<T> &&
+    std::movable<T> &&
     !std::copy_constructible<T> &&
-    !std::copy-assignable_v<T> &&
+    !std::is_copy_assignable_v<T> &&
     std::is_nothrow_move_constructible_v<T> &&
     std::is_nothrow_move_assignable_v<T>;
 ```
@@ -96,26 +96,30 @@ concept RegistrySlot =
     };
 ```
 
-### 4.3 RegistryLike
+### 4.3 RegistryPolicy
 
 ```cpp
-template <class R>
-concept RegistryLike =
-    MoveOnlyNoexcept<R> &&
+template <class P, class Slot, class RetiredPayload>
+concept RegistryPolicy =
     requires(
-        R reg 
-        const R creg
-        typename R::Handle handle,
-        typename R::CreateInfo ci,
-        uint64_t retire_at) {
+        Slot& slot,
+        RetiredPayload& payload,
+        void* ctx) {
         
-        typename R::Handle;
-        typename R::CreateInfo;
+        { P::destroy_slot_immediate(slot) }
+            noexcept -> std::same_as<void>;
 
-        { reg.create(ci) };
-        { reg.destroy(handle, retire_at) } noexcept -> std::same_as<void>;
-        { reg.clear() } noexcept -> std::same_as<void>;
-        { creg.alive(handle) } noexcept -> std::convertible_to<bool>;
+        {
+        P::move_slot_to_retired_payload(
+                slot,
+                payload)
+        } noexcept -> std::same_as<void>;
+
+        { P::destroy_retired_payload(ctx) }
+            noexcept -> std::same_as<void>;
+
+        { P::cleanup_retired_payload(ctx) }
+            noexcept -> std::same_as<void>;
     };
 ```
 
@@ -128,26 +132,54 @@ The base owns:
 - slots_
 - free_
 - retire_queue_
+
+The base provides:
+
 - handle validation helpers
 - slot allocation
+- generation validation
 - liveness checks
-- common clear behavior
-- common retirement transfer behavior
+- slot lookup helpers
+- transactional creation support
+- retirement transfer
+- clear semantics
 
 The base does not own resource-specific creation logic.
+
+### 5.1 Transactional Creation
+
+The base provides a `PendingSlot` helper used during creation.
+
+`PendingSlot` guarantees that a partially created slot is automatically returned to the registry if creation fails.
+
+This enables registry implementations to use normal error propagation without manual rollback logic.
+
+Example:
+
+```cpp
+auto pending = begin_create_();
+
+QUARK_TRY_STATUS(slot.cmd.create(...));
+QUARK_TRY_STATUS(slot.sync.create(...));
+
+return pending.commit();
+```
+
+If `commit()` is never called, the slot is automatically released.
 
 ## 6. Required Registry Semantics
 
 A registry shall guarantee:
 
-- opaque-handle-only-ownership API
+- opaque-handle-only resource access
 - generation-checked stale handle protection
 - move-only ownership
 - noexcept move construction and assignment
 - copy construction and copy assignment deleted
 - transactional creation
-- destroy transfers live payloads to retirement at most once
-- clear leaves and registry empty and consistent
+- destroy retires or destroys live payloads at most once
+- failed creation automatically releases unpublished slots
+- clear leaves the registry empty and consistent
 - accessors reject or return null for non-live handles
 
 ## 7. Typed Facade Pattern
@@ -157,10 +189,10 @@ Concrete registries remain resource-specific facade types.
 Example:
 
 ```cpp
-class FrameRegistry final : public RegistryBase<FrameRegistry, FrameHandle, FrameSlot, RetiredFramePayload> {
-    public:
-        using Handle = FrameHandle;
+struct FrameRegistryPolicy;
 
+class FrameRegistry final : public RegistryBase<FrameHandle, FrameSlot, RetiredFramePayload, FrameRegistryPolicy> {
+    public:
         struct CreateInfo;
 
         util::Result<FrameHandle> create(const CreateInfo& ci);
