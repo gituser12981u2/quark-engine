@@ -1,22 +1,48 @@
 #pragma once
 
-// Can we make forward declare friendly?
-#include "quark/engine/retire/retirement_queue.hpp"
-#include "quark/vk/device/device_view.hpp"
-
 #include <cstdint>
+#include <quark/engine/registry/registry_base.hpp>
+#include <quark/engine/retire/retirement_queue.hpp>
 #include <quark/utils/raii.hpp>
 #include <quark/utils/result.hpp>
+#include <quark/vk/device/device_view.hpp>
 #include <quark/vk/frame/details/frame_cmd.hpp>
+#include <quark/vk/frame/details/frame_handle.hpp>
 #include <quark/vk/frame/details/frame_sync.hpp>
-#include <vector>
 #include <vulkan/vulkan_core.h>
 
 namespace quark::vk::details {
 
-struct FrameHandle;
+struct FrameRegistrySlot {
+  bool live = false;
+  uint32_t generation = 1;
 
-class FrameRegistry final {
+  FrameCmd cmd;
+  FrameSync sync;
+};
+
+struct FrameRetiredPayload {
+  FrameCmd cmd;
+  FrameSync sync;
+};
+
+struct FrameRegistryPolicy {
+  static void destroy_slot_immediate(FrameRegistrySlot &slot) noexcept;
+  static void
+  move_slot_to_retired_payload(FrameRegistrySlot &slot,
+                               FrameRetiredPayload &payload) noexcept;
+
+  static void destroy_retired_payload(void *ctx) noexcept;
+  static void cleanup_retired_payload(void *ctx) noexcept;
+};
+
+class FrameRegistry final
+    : public engine::RegistryBase<FrameHandle, FrameRegistrySlot,
+                                  FrameRetiredPayload, FrameRegistryPolicy> {
+private:
+  using Base = engine::RegistryBase<FrameHandle, FrameRegistrySlot,
+                                    FrameRetiredPayload, FrameRegistryPolicy>;
+
 public:
   struct CreateInfo {
     DeviceView device{};
@@ -38,44 +64,19 @@ public:
   QUARK_MOVE_ONLY(FrameRegistry);
 
   [[nodiscard]] util::Result<FrameHandle> create(const CreateInfo &ci);
-  void destory(FrameHandle handle, uint64_t retire_at) noexcept;
+  void destroy(FrameHandle handle, uint64_t retire_at) noexcept;
 
   // TODO: add validate()
 
   void clear() noexcept;
 
-  [[nodiscard]] bool alive(FrameHandle handle) const noexcept;
+  using Base::alive;
 
   [[nodiscard]] FrameCmd *cmd(FrameHandle handle) noexcept;
   [[nodiscard]] const FrameCmd *cmd(FrameHandle handle) const noexcept;
 
   [[nodiscard]] FrameSync *sync(FrameHandle handle) noexcept;
   [[nodiscard]] const FrameSync *sync(FrameHandle handle) const noexcept;
-
-private:
-  struct Slot {
-    bool live = false;
-    uint32_t generation = 1;
-
-    FrameCmd cmd;
-    FrameSync sync;
-  };
-
-  struct RetiredFramePayload {
-    FrameCmd cmd;
-    FrameSync sync;
-  };
-
-  static void destroy_retired_frame_(void *ctx) noexcept;
-  static void cleanup_retired_frame_(void *ctx) noexcept;
-
-  [[nodiscard]] static bool matches_(FrameHandle handle,
-                                     const Slot &slot) noexcept;
-
-  RetirementQueue *retire_queue_ = nullptr;
-
-  std::vector<Slot> slots_;
-  std::vector<uint32_t> free_;
 };
 
 } // namespace quark::vk::details

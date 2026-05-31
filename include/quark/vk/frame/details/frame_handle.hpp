@@ -1,13 +1,11 @@
 #pragma once
 
-#include <cstdint>
+#include <quark/engine/handle/opaque_handle.hpp>
+
 namespace quark::vk::details {
 
-struct FrameHandle {
-  uint32_t index = 0;
-  uint32_t generation = 0;
+struct FrameHandleTag;
 
-  [[nodiscard]] bool valid() const noexcept { return generation != 0; }
-};
+using FrameHandle = engine::GenericHandle<FrameHandleTag>;
 
 } // namespace quark::vk::details

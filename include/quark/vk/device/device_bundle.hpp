@@ -2,16 +2,11 @@
 
 #include <quark/utils/raii.hpp>
 #include <quark/utils/result.hpp>
-#include <quark/vk/device/details/device_registry.hpp>
+#include <quark/vk/device/details/device.hpp>
+#include <quark/vk/device/details/device_capabilities.hpp>
+#include <vulkan/vulkan_core.h>
 
 namespace quark::vk {
-
-namespace details {
-
-class Device;
-struct DeviceHandle;
-
-} // namespace details
 
 struct DeviceView;
 
@@ -31,10 +26,6 @@ public:
   void destroy() noexcept;
 
   [[nodiscard]] util::Status validate() const noexcept;
-
-  [[nodiscard]] details::DeviceHandle handle() const noexcept {
-    return handle_;
-  }
   [[nodiscard]] DeviceView view() const noexcept;
 
   [[nodiscard]] VkPhysicalDevice vk_physical_device() const noexcept;
@@ -46,8 +37,7 @@ public:
   [[nodiscard]] details::DeviceCapabilities capabilities() const noexcept;
 
 private:
-  details::DeviceRegistry registry_;
-  details::DeviceHandle handle_{};
+  details::Device device_;
 };
 
 } // namespace quark::vk
