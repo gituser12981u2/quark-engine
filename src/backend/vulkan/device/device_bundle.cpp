@@ -1,8 +1,6 @@
 #include <cstdint>
 #include <quark/utils/diagnostic.hpp>
 #include <quark/vk/device/details/device.hpp>
-#include <quark/vk/device/details/device_handle.hpp>
-#include <quark/vk/device/details/device_registry.hpp>
 #include <quark/vk/device/device_bundle.hpp>
 #include <quark/vk/device/device_view.hpp>
 #include <vulkan/vulkan_core.h>
@@ -12,71 +10,58 @@ namespace quark::vk {
 util::Status DeviceBundle::create(const DeviceBundle::CreateInfo &ci) {
   destroy();
 
-  QUARK_TRY_ASSIGN(handle_, registry_.create(ci.device));
-  QUARK_OK();
+  return device_.create(ci.device);
 }
 
-void DeviceBundle::destroy() noexcept {
-  registry_.destroy(handle_);
-  handle_ = details::DeviceHandle{};
-}
+void DeviceBundle::destroy() noexcept { device_.destroy(); }
 
 util::Status DeviceBundle::validate() const noexcept {
-  QUARK_ENSURE(registry_.alive(handle_),
+  QUARK_ENSURE(device_.valid(),
                QUARK_ERR(util::Errc::InvalidState, "device handle not alive"));
 
   return ::quark::vk::validate(view());
 }
 
 DeviceView DeviceBundle::view() const noexcept {
-  const details::Device *dev = registry_.get(handle_);
-  if (dev == nullptr) {
+  if (!device_.valid()) {
     return {};
   }
 
   DeviceView v{};
-  v.physical_device = dev->vk_physical_device();
-  v.device = dev->vk_device();
-  v.graphics_queue = dev->graphics_queue();
-  v.graphics_queue_family_index = dev->graphics_queue_family_index();
+  v.physical_device = device_.vk_physical_device();
+  v.device = device_.vk_device();
+  v.graphics_queue = device_.graphics_queue();
+  v.graphics_queue_family_index = device_.graphics_queue_family_index();
 
   return v;
 }
 
 VkPhysicalDevice DeviceBundle::vk_physical_device() const noexcept {
-  const details::Device *device = registry_.get(handle_);
-  return (device != nullptr) ? device->vk_physical_device() : VK_NULL_HANDLE;
+  return device_.vk_physical_device();
 }
 
 VkDevice DeviceBundle::vk_device() const noexcept {
-  const details::Device *device = registry_.get(handle_);
-  return (device != nullptr) ? device->vk_device() : VK_NULL_HANDLE;
+  return device_.vk_device();
 }
 
 VkQueue DeviceBundle::graphics_queue() const noexcept {
-  const details::Device *device = registry_.get(handle_);
-  return (device != nullptr) ? device->graphics_queue() : VK_NULL_HANDLE;
+  return device_.graphics_queue();
 }
 
 VkQueue DeviceBundle::present_queue() const noexcept {
-  const details::Device *device = registry_.get(handle_);
-  return (device != nullptr) ? device->present_queue() : VK_NULL_HANDLE;
+  return device_.present_queue();
 }
 
 uint32_t DeviceBundle::graphics_queue_family_index() const noexcept {
-  const details::Device *device = registry_.get(handle_);
-  return (device != nullptr) ? device->graphics_queue_family_index() : 0;
+  return device_.graphics_queue_family_index();
 }
 
 uint32_t DeviceBundle::present_queue_family_index() const noexcept {
-  const details::Device *device = registry_.get(handle_);
-  return (device != nullptr) ? device->present_queue_family_index() : 0;
+  return device_.graphics_queue_family_index();
 }
 
 details::DeviceCapabilities DeviceBundle::capabilities() const noexcept {
-  const details::Device *device = registry_.get(handle_);
-  return (device != nullptr) ? device->capabilities()
-                             : details::DeviceCapabilities{};
+  return device_.capabilities();
 }
 
 } // namespace quark::vk
