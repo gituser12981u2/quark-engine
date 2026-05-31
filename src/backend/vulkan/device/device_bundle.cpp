@@ -8,8 +8,6 @@
 namespace quark::vk {
 
 util::Status DeviceBundle::create(const DeviceBundle::CreateInfo &ci) {
-  destroy();
-
   return device_.create(ci.device);
 }
 

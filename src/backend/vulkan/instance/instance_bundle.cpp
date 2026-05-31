@@ -2,37 +2,23 @@
 #include <quark/utils/diagnostic.hpp>
 #include <quark/vk/instance/details/debug_messenger.hpp>
 #include <quark/vk/instance/details/instance.hpp>
-#include <quark/vk/instance/details/instance_handle.hpp>
-#include <quark/vk/instance/details/instance_registry.hpp>
 #include <quark/vk/instance/instance_bundle.hpp>
 
 namespace quark::vk {
 
 util::Status InstanceBundle::create(const CreateInfo &ci) {
-  destroy();
-
-  QUARK_TRY_ASSIGN(handle_, registry_.create(ci.instance));
-  return {};
+  return instance_.create(ci.instance);
 }
 
-void InstanceBundle::destroy() noexcept {
-  registry_.destroy(handle_);
-  handle_ = details::InstanceHandle{};
-}
+void InstanceBundle::destroy() noexcept { instance_.destroy(); }
 
 VkInstance InstanceBundle::vk_instance() const noexcept {
-  const details::Instance *instance = registry_.get(handle_);
-  return (instance != nullptr) ? instance->handle() : VK_NULL_HANDLE;
+  return instance_.handle();
 }
 
 const details::DebugMessenger *
 InstanceBundle::debug_messenger() const noexcept {
-  const details::Instance *instance = registry_.get(handle_);
-  if (instance == nullptr) {
-    return nullptr;
-  }
-
-  return &instance->debug_messenger();
+  return &instance_.debug_messenger();
 }
 
 } // namespace quark::vk

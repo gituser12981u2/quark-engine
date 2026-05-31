@@ -2,7 +2,7 @@
 
 #include <quark/utils/raii.hpp>
 #include <quark/utils/result.hpp>
-#include <quark/vk/instance/details/instance_registry.hpp>
+#include <quark/vk/instance/details/instance.hpp>
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_core.h>
 
@@ -11,8 +11,6 @@ namespace quark::vk {
 namespace details {
 
 class DebugMessenger;
-class Instance;
-struct InstanceHandle;
 
 } // namespace details
 
@@ -48,14 +46,7 @@ public:
   /// Releases the live instance slot in the registry (idempotent).
   void destroy() noexcept;
 
-  [[nodiscard]] bool valid() const noexcept { return registry_.alive(handle_); }
-
-  /**
-   * Opaque handle for diagnostics/registries; avoid using in higher layers.
-   */
-  [[nodiscard]] details::InstanceHandle handle() const noexcept {
-    return handle_;
-  }
+  [[nodiscard]] bool valid() const noexcept { return instance_.valid(); }
 
   /**
    * Resolves to raw VkInstance.
@@ -67,8 +58,7 @@ public:
   [[nodiscard]] const details::DebugMessenger *debug_messenger() const noexcept;
 
 private:
-  details::InstanceRegistry registry_;
-  details::InstanceHandle handle_{};
+  details::Instance instance_;
 };
 
 } // namespace quark::vk
