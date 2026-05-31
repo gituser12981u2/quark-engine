@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <fmt/format.h>
 #include <quark/vk/device/details/device.hpp>
 #include <quark/vk/device/details/device_feature_chain_builder.hpp>
 #include <quark/vk/diagnostic_prelude.hpp>
@@ -17,9 +18,6 @@ util::Status Device::create(const Device::CreateInfo &ci) {
   QUARK_ENSURE(ci.instance != VK_NULL_HANDLE,
                QUARK_ERR(util::Errc::InvalidArg,
                          "Cannot create Vulkan device with null instance"));
-  QUARK_ENSURE(ci.surface != VK_NULL_HANDLE,
-               QUARK_ERR(util::Errc::InvalidArg,
-                         "Cannot create Vulkan device with null surface"));
 
   alloc_ = ci.allocator;
 
@@ -38,8 +36,11 @@ util::Status Device::create(const Device::CreateInfo &ci) {
   capabilities_.enabled_features = 0;
 
   constexpr float queue_priority{1.0F};
-  const std::set<uint32_t> unique_queue_families{graphics_queue_family_index_,
-                                                 present_queue_family_index_};
+  std::set<uint32_t> unique_queue_families{graphics_queue_family_index_};
+
+  if (selection.has_present_queue) {
+    unique_queue_families.insert(present_queue_family_index_);
+  }
 
   std::vector<VkDeviceQueueCreateInfo> queue_create_infos;
   queue_create_infos.reserve(unique_queue_families.size());
@@ -81,7 +82,13 @@ util::Status Device::create(const Device::CreateInfo &ci) {
   device_ = out;
 
   vkGetDeviceQueue(device_, graphics_queue_family_index_, 0, &graphics_queue_);
-  vkGetDeviceQueue(device_, present_queue_family_index_, 0, &present_queue_);
+
+  if (selection.has_present_queue) {
+    vkGetDeviceQueue(device_, present_queue_family_index_, 0, &present_queue_);
+  } else {
+    present_queue_ = VK_NULL_HANDLE;
+    present_queue_family_index_ = graphics_queue_family_index_;
+  }
 
   QUARK_OK();
 }
@@ -105,8 +112,8 @@ util::Result<Device::DeviceSelection> Device::pick_physical_device_(
     const std::vector<const char *> &required_extensions) {
   QUARK_ENSURE(instance != VK_NULL_HANDLE,
                QUARK_ERR(util::Errc::InvalidArg, "instance is null"));
-  QUARK_ENSURE(surface != VK_NULL_HANDLE,
-               QUARK_ERR(util::Errc::InvalidArg, "surface is null"));
+
+  const bool has_surface = surface != VK_NULL_HANDLE;
 
   uint32_t device_count{0};
   QUARK_VK_TRY(vkEnumeratePhysicalDevices(instance, &device_count,
@@ -120,10 +127,6 @@ util::Result<Device::DeviceSelection> Device::pick_physical_device_(
       vkEnumeratePhysicalDevices(instance, &device_count, devices.data()));
 
   std::optional<DeviceSelection> fallback;
-  auto enumerate = [&](VkPhysicalDevice physical_device)
-      -> util::Result<std::vector<VkExtensionProperties>> {
-    return enumerate_device_extensions_(physical_device);
-  };
 
   for (const VkPhysicalDevice &physical_device : devices) {
     const auto graphics_queue_family_index =
@@ -132,14 +135,23 @@ util::Result<Device::DeviceSelection> Device::pick_physical_device_(
       continue;
     }
 
-    const auto present_queue_family_index =
-        find_present_queue_family_or_error_(physical_device, surface);
-    if (!present_queue_family_index.has_value()) {
-      continue;
+    uint32_t present_queue_family_index = *graphics_queue_family_index;
+    bool has_present_queue = false;
+
+    if (has_surface) {
+      const auto present_result =
+          find_present_queue_family_or_error_(physical_device, surface);
+
+      if (!present_result.has_value()) {
+        continue;
+      }
+
+      present_queue_family_index = *present_result;
+      has_present_queue = true;
     }
 
     std::vector<VkExtensionProperties> props;
-    QUARK_TRY_ASSIGN(props, enumerate(physical_device));
+    QUARK_TRY_ASSIGN(props, enumerate_device_extensions_(physical_device));
 
     bool ok_exts = true;
     for (const char *name : required_extensions) {
@@ -148,6 +160,7 @@ util::Result<Device::DeviceSelection> Device::pick_physical_device_(
         break;
       }
     }
+
     if (!ok_exts) {
       continue;
     }
@@ -158,7 +171,8 @@ util::Result<Device::DeviceSelection> Device::pick_physical_device_(
     const DeviceSelection selection{
         .physical_device = physical_device,
         .graphics_queue_family_index = *graphics_queue_family_index,
-        .present_queue_family_index = *present_queue_family_index,
+        .present_queue_family_index = present_queue_family_index,
+        .has_present_queue = has_present_queue,
     };
 
     if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
@@ -294,6 +308,11 @@ Device::find_graphics_queue_family_or_error_(VkPhysicalDevice physical_device) {
 util::Result<uint32_t>
 Device::find_present_queue_family_or_error_(VkPhysicalDevice physical_device,
                                             VkSurfaceKHR surface) {
+  QUARK_ENSURE(physical_device != VK_NULL_HANDLE,
+               QUARK_ERR(util::Errc::InvalidArg, "physical_device is null"));
+  QUARK_ENSURE(surface != VK_NULL_HANDLE,
+               QUARK_ERR(util::Errc::InvalidArg, "surface is null"));
+
   uint32_t queue_family_count{0};
   vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_family_count,
                                            /*pQueueFamilyProperties=*/nullptr);

@@ -23,6 +23,8 @@ add_library(quark::headers::core ALIAS quark_headers_core)
 target_link_libraries(quark_headers_core INTERFACE quark::build_settings
                                                    fmt::fmt)
 
+target_link_libraries(quark_build_settings INTERFACE quark::features)
+
 add_library(quark_headers_vk INTERFACE)
 add_library(quark::headers::vk ALIAS quark_headers_vk)
 target_link_libraries(quark_headers_vk INTERFACE quark::headers::core

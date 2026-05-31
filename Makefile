@@ -1,4 +1,5 @@
 CONFIG ?= debug
+HEADLESS ?= OFF
 
 UNAME_S := $(shell uname -s 2>/dev/null)
 UNAME_M := $(shell uname -m 2>/dev/null)
@@ -23,6 +24,14 @@ else
   $(error Unknown CONFIG '$(CONFIG)'. Use one of: debug release asan-ubsan tsan release-lto debug-gcc debug-clang)
 endif
 
+ifeq ($(HEADLESS),ON)
+	HEADLESS_SUFFIX := -headless 
+else ifeq($(HEADLESS),OFF)
+	HEADLESS_SUFFIX :=
+else
+	$(error Unknown HEADLESS '$(HEADLESS)'. Use ON or OFF)
+endif
+
 ifeq ($(UNAME_S),Darwin)
   ifeq ($(UNAME_M),arm64)
     CMAKE_CONFIGURE_PRESET := macos-arm64-$(SUFFIX)
@@ -31,31 +40,31 @@ ifeq ($(UNAME_S),Darwin)
   else
     $(error Unsupported macOS arch '$(UNAME_M)')
   endif
-  BUILD_DIR := build/$(CMAKE_CONFIGURE_PRESET)
+  BUILD_DIR := build/$(CMAKE_CONFIGURE_PRESET)$(HEADLESS_SUFFIX)
 
 else ifeq ($(UNAME_S),Linux)
   ifndef LINUX_TOOLCHAIN
     LINUX_TOOLCHAIN := gcc
   endif
   CMAKE_CONFIGURE_PRESET := linux-x64-$(LINUX_TOOLCHAIN)-$(SUFFIX)
-  BUILD_DIR := build/$(CMAKE_CONFIGURE_PRESET)
+  BUILD_DIR := build/$(CMAKE_CONFIGURE_PRESET)$(HEADLESS_SUFFIX)
 
 else
   # Windows (i.e. Git Bash/MSYS) often reports uname -s like MINGW64_NT-*
   # For native Windows usage, recommend running from a shell where `cmake` works.
   ifneq (,$(findstring MINGW,$(UNAME_S)))
     CMAKE_CONFIGURE_PRESET := windows-x64-msvc-$(SUFFIX)
-    BUILD_DIR := build/$(CMAKE_CONFIGURE_PRESET)
+    BUILD_DIR := build/$(CMAKE_CONFIGURE_PRESET)$(HEADLESS_SUFFIX)
   else ifneq (,$(findstring MSYS,$(UNAME_S)))
     CMAKE_CONFIGURE_PRESET := windows-x64-msvc-$(SUFFIX)
-    BUILD_DIR := build/$(CMAKE_CONFIGURE_PRESET)
+    BUILD_DIR := build/$(CMAKE_CONFIGURE_PRESET)$(HEADLESS_SUFFIX)
   else ifneq (,$(findstring CYGWIN,$(UNAME_S)))
     CMAKE_CONFIGURE_PRESET := windows-x64-msvc-$(SUFFIX)
-    BUILD_DIR := build/$(CMAKE_CONFIGURE_PRESET)
+    BUILD_DIR := build/$(CMAKE_CONFIGURE_PRESET)$(HEADLESS_SUFFIX)
   else
     # If uname isn't available, assume Windows.
     CMAKE_CONFIGURE_PRESET := windows-x64-msvc-$(SUFFIX)
-    BUILD_DIR := build/$(CMAKE_CONFIGURE_PRESET)
+    BUILD_DIR := build/$(CMAKE_CONFIGURE_PRESET)$(HEADLESS_SUFFIX)
   endif
 
   ifeq ($(SUFFIX),asan-ubsan)
@@ -81,6 +90,8 @@ else
   # Windows/MSYS/Git Bash/Cygwin (probably)
   VCPKG_TRIPLET := x64-windows
 endif
+
+
 
 .PHONY: deps vcpkg-install configure build run clean bench-noop bench-touch
 
@@ -144,7 +155,10 @@ vcpkg-install: deps
 	./vcpkg/vcpkg install --triplet $(VCPKG_TRIPLET)
 
 configure:
-	cmake --preset $(CMAKE_CONFIGURE_PRESET)
+	cmake --preset $(CMAKE_CONFIGURE_PRESET) \
+		-DQUARK_HEADLESS=$(HEADLESS) \
+		-DVCPKG_MANIFEST_FEATURES=window
+		-B $(BUILD_DIR)
 	./scripts/sync_compile_commands.sh $(BUILD_DIR)
 
 build: configure
@@ -155,4 +169,3 @@ run: build
 
 clean:
 	rm -rf build
-

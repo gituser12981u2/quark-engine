@@ -3,17 +3,30 @@
   "version-string": "0.1.0",
   "dependencies": [
     "vulkan",
-    {
-      "name": "vulkan-loader",
-      "features": [
-        "xcb",
-        "xlib",
-        "wayland"
-      ]
-    },
-    "glfw3",
     "tl-expected",
     "fmt",
     "spdlog"
-  ]
+  ],
+  "features": {
+    "window": {
+      "description": "Windowed presentation support",
+      "dependencies": [
+        {
+          "name": "vulkan-loader",
+          "features": [
+            "xcb",
+            "xlib",
+            "wayland"
+          ]
+        },
+        "glfw3"
+      ]
+    },
+    "headless": {
+      "description": "Headless Vulkan support",
+      "dependencies": [
+        "vulkan-loader"
+      ]
+    }
+  }
 }

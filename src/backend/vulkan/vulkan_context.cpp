@@ -2,6 +2,8 @@
 
 // TODO: move test to testing system when possible
 #include "quark/engine/retire/retirement_queue.hpp"
+#include "quark/utils/diagnostic.hpp"
+#include "quark/utils/error_types.hpp"
 
 #include <algorithm>
 #include <array>
@@ -9,10 +11,15 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <memory>
+
 #include <new>
+
+#if !QUARK_HEADLESS
+#include <memory>
 #include <quark/platform/window/glfw_window.hpp>
 #include <quark/platform/window/interface_query.hpp>
+#endif
+
 #include <quark/vk/diagnostic_prelude.hpp>
 #include <quark/vk/instance/instance_bundle.hpp>
 #include <quark/vk/surface_source.hpp>
@@ -80,9 +87,13 @@ enqueue_retire_test(quark::vk::RetirementQueue &queue, uint64_t retire_at,
 
 namespace {
 
+#if !QUARK_HEADLESS
 constexpr int kWindowWidth{1280};
 constexpr int kWindowHeight{720};
 constexpr std::string_view kWindowTitle = "quark-engine";
+
+constexpr const char *kSwapchainExtension = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
+#endif
 
 constexpr bool kEnableValidationLayers =
 #ifndef NDEBUG
@@ -94,8 +105,6 @@ constexpr bool kEnableValidationLayers =
 constexpr array<const char *, 1> kValidationLayers{
     "VK_LAYER_KHRONOS_validation",
 };
-
-constexpr const char *kSwapchainExtension = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
 
 auto api_version_at_least(uint32_t version, uint32_t major, uint32_t minor)
     -> bool {
@@ -144,6 +153,8 @@ auto check_validation_layer_support() -> bool {
   return true;
 }
 
+#if !QUARK_HEADLESS
+
 auto create_probe_surface(VkInstance instance,
                           const quark::platform::IWindow &window)
     -> util::Result<VkSurfaceKHR> {
@@ -175,12 +186,16 @@ void destroy_probe_surface(VkInstance instance,
   surface = VK_NULL_HANDLE;
 }
 
+#endif
+
 } // namespace
 
 namespace quark::vk {
 
 util::Status VulkanContext::init() {
+#if !QUARK_HEADLESS
   create_window();
+#endif
 
   QUARK_TRY_STATUS(create_instance());
 
@@ -188,6 +203,7 @@ util::Status VulkanContext::init() {
   QUARK_TRY_STATUS(create_gpu_timeline());
   QUARK_TRY_STATUS(create_retirement_queue());
 
+#if !QUARK_HEADLESS
   QUARK_TRY_STATUS(create_presenter());
 
   images_in_flight_.assign(presenter_.swapchain().images().size(), 0);
@@ -198,8 +214,9 @@ util::Status VulkanContext::init() {
 
   QUARK_TRY_STATUS(create_render_pass());
   QUARK_TRY_STATUS(create_framebuffers());
+#endif
 
-  return {};
+  QUARK_OK();
 }
 
 VulkanContext::~VulkanContext() {
@@ -212,15 +229,27 @@ VulkanContext::~VulkanContext() {
   retirement_queue_.destroy();
   gpu_timeline_.destroy();
 
+#if !QUARK_HEADLESS
   cleanup_swapchain();
   presenter_.destroy();
-  device_.destroy();
+#endif
 
+  device_.destroy();
   instance_.destroy();
 }
 
 util::Status VulkanContext::run() {
   QUARK_TRY_STATUS(init());
+
+#if QUARK_HEADLESS
+  QUARK_LOG_INFO("Vulkan initialised successfully in headless mode.");
+
+  if (device_.validate()) {
+    vkDeviceWaitIdle(device_.vk_device());
+  }
+
+  QUARK_OK();
+#else
   QUARK_LOG_INFO("Vulkan initialised successfully.");
 
   while (!window_->should_close()) {
@@ -233,65 +262,38 @@ util::Status VulkanContext::run() {
   }
 
   QUARK_OK();
-}
-
-void VulkanContext::create_window() {
-  auto window = std::make_unique<platform::GlfwWindow>();
-
-  platform::IWindow::CreateInfo ci{};
-  ci.width = kWindowWidth;
-  ci.height = kWindowHeight;
-  ci.title = kWindowTitle.data();
-  ci.resizable = true;
-
-  window->create(ci);
-  window_ = std::move(window);
-}
-
-util::Status VulkanContext::create_instance() {
-  const bool enable_validation_layers =
-      kEnableValidationLayers && check_validation_layer_support();
-
-  if (kEnableValidationLayers && !enable_validation_layers) {
-    QUARK_LOG_WARN("Validation layers requested, but unavailable. Continuing "
-                   "without them.");
-  }
-
-  const auto *surface = platform::query<IVulkanSurfaceSource>(*window_);
-  QUARK_ENSURE(surface != nullptr,
-               QUARK_ERR(util::Errc::Unsupported,
-                         "Window does not provide IVulkanSurfaceSource"));
-
-  InstanceBundle::CreateInfo ci{};
-  ci.instance.app_name = "quark-engine";
-  ci.instance.engine_name = "quark";
-  ci.instance.api_version = choose_instance_api_version();
-  ci.instance.enable_debug_messenger = true;
-  ci.instance.extensions = surface->required_instance_extensions();
-
-  QUARK_TRY_STATUS(instance_.create(ci));
-
-  QUARK_OK();
+#endif
 }
 
 util::Status VulkanContext::create_device() {
-  VkSurfaceKHR surface = VK_NULL_HANDLE;
-  QUARK_TRY_ASSIGN(surface,
-                   create_probe_surface(instance_.vk_instance(), *window_));
 
   DeviceBundle::CreateInfo ci{};
   ci.device.instance = instance_.vk_instance();
-  ci.device.surface = surface;
   ci.device.required_features = static_cast<details::DeviceFeatureFlags>(
       details::DeviceFeature::TimelineSemaphore);
   ci.device.preferred_features = static_cast<details::DeviceFeatureFlags>(
                                      details::DeviceFeature::DynamicRendering) |
                                  static_cast<details::DeviceFeatureFlags>(
                                      details::DeviceFeature::Synchronization2);
+
+#if !QUARK_HEADLESS
+  VkSurfaceKHR surface = VK_NULL_HANDLE;
+  QUARK_TRY_ASSIGN(surface,
+                   create_probe_surface(instance_.vk_instance(), *window_));
+
+  ci.device.surface = surface;
   ci.device.required_extensions = {kSwapchainExtension};
+#else
+  ci.device.surface = VK_NULL_HANDLE;
+  ci.device.required_extensions = {};
+#endif
 
   auto device_status = device_.create(ci);
+
+#if !QUARK_HEADLESS
   destroy_probe_surface(instance_.vk_instance(), surface);
+#endif
+
   if (!device_status) {
     return util::unexpected(std::move(device_status.error()));
   }
@@ -318,31 +320,49 @@ util::Status VulkanContext::create_device() {
   QUARK_OK();
 }
 
-void VulkanContext::resolve_render_path() {
-  const auto caps = device_.capabilities();
+util::Status VulkanContext::create_instance() {
+  const bool enable_validation_layers =
+      kEnableValidationLayers && check_validation_layer_support();
 
-  const bool can_use_dynamic_rendering =
-      api_version_at_least(caps.api_version, 1, 3) &&
-      caps.enabled(details::DeviceFeature::DynamicRendering) &&
-      caps.enabled(details::DeviceFeature::Synchronization2) &&
-      queue_submit2_ != nullptr && cmd_begin_rendering_ != nullptr &&
-      cmd_end_rendering_ != nullptr && cmd_pipeline_barrier2_ != nullptr;
+  if (kEnableValidationLayers && !enable_validation_layers) {
+    QUARK_LOG_WARN("Validation layers requested, but unavailable. Continuing "
+                   "without them.");
+  }
 
-  render_path_ = can_use_dynamic_rendering
-                     ? RenderPath::Vulkan13DynamicRendering
-                     : RenderPath::Vulkan12Fallback;
+  InstanceBundle::CreateInfo ci{};
+  ci.instance.app_name = "quark-engine";
+  ci.instance.engine_name = "quark";
+  ci.instance.api_version = choose_instance_api_version();
+  ci.instance.enable_debug_messenger = kEnableValidationLayers;
 
-  QUARK_LOG_INFO("render path selected: {}",
-                 render_path_ == RenderPath::Vulkan13DynamicRendering
-                     ? "vk13 dynamic rendering"
-                     : "vk12 render pass fallback");
+#if !QUARK_HEADLESS
+  const auto *surface = platform::query<IVulkanSurfaceSource>(*window_);
+  QUARK_ENSURE(surface != nullptr,
+               QUARK_ERR(util::Errc::Unsupported,
+                         "Window does not provide IVulkanSurfaceSource"));
+
+  ci.instance.extensions = surface->required_instance_extensions();
+#else
+  ci.instance.extensions = {};
+#endif
+
+  QUARK_TRY_STATUS(instance_.create(ci));
+  QUARK_OK();
 }
 
-util::Status VulkanContext::create_gpu_timeline() {
-  GpuTimeline::CreateInfo ci{};
-  ci.device = device_.view();
-  QUARK_TRY_STATUS(gpu_timeline_.create(ci));
-  QUARK_OK();
+#if !QUARK_HEADLESS
+
+void VulkanContext::create_window() {
+  auto window = std::make_unique<platform::GlfwWindow>();
+
+  platform::IWindow::CreateInfo ci{};
+  ci.width = kWindowWidth;
+  ci.height = kWindowHeight;
+  ci.title = kWindowTitle.data();
+  ci.resizable = true;
+
+  window->create(ci);
+  window_ = std::move(window);
 }
 
 util::Status VulkanContext::create_presenter() {
@@ -367,14 +387,6 @@ util::Status VulkanContext::create_frame() {
       static_cast<uint32_t>(presenter_.swapchain().images().size());
   ci.cmd_pool_flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
   QUARK_TRY_STATUS(frame_.create(ci));
-  QUARK_OK();
-}
-
-util::Status VulkanContext::create_retirement_queue() {
-  RetirementQueue::CreateInfo ci{};
-  ci.timeline = &gpu_timeline_;
-  ci.reserve = 256; // TODO: tune later
-  QUARK_TRY_STATUS(retirement_queue_.create(ci));
   QUARK_OK();
 }
 
@@ -626,6 +638,11 @@ util::Status VulkanContext::submit_frame(VkCommandBuffer command_buffer,
 }
 
 util::Status VulkanContext::draw_frame() {
+#if QUARK_HEADLESS
+  QUARK_FAIL(QUARK_ERR(util::Errc::Unsupported,
+                       "draw_frame is unavailable in headless mode"));
+#endif
+
   std::size_t drained = 0;
   QUARK_TRY_ASSIGN(drained, retirement_queue_.drain());
   (void)drained;
@@ -742,6 +759,43 @@ util::Status VulkanContext::recreate_swapchain() {
   QUARK_TRY_STATUS(frame_.sync()->resize(
       static_cast<uint32_t>(presenter_.swapchain().images().size())));
 
+  QUARK_OK();
+}
+
+#endif
+
+void VulkanContext::resolve_render_path() {
+  const auto caps = device_.capabilities();
+
+  const bool can_use_dynamic_rendering =
+      api_version_at_least(caps.api_version, 1, 3) &&
+      caps.enabled(details::DeviceFeature::DynamicRendering) &&
+      caps.enabled(details::DeviceFeature::Synchronization2) &&
+      queue_submit2_ != nullptr && cmd_begin_rendering_ != nullptr &&
+      cmd_end_rendering_ != nullptr && cmd_pipeline_barrier2_ != nullptr;
+
+  render_path_ = can_use_dynamic_rendering
+                     ? RenderPath::Vulkan13DynamicRendering
+                     : RenderPath::Vulkan12Fallback;
+
+  QUARK_LOG_INFO("render path selected: {}",
+                 render_path_ == RenderPath::Vulkan13DynamicRendering
+                     ? "vk13 dynamic rendering"
+                     : "vk12 render pass fallback");
+}
+
+util::Status VulkanContext::create_gpu_timeline() {
+  GpuTimeline::CreateInfo ci{};
+  ci.device = device_.view();
+  QUARK_TRY_STATUS(gpu_timeline_.create(ci));
+  QUARK_OK();
+}
+
+util::Status VulkanContext::create_retirement_queue() {
+  RetirementQueue::CreateInfo ci{};
+  ci.timeline = &gpu_timeline_;
+  ci.reserve = 256; // TODO: tune later
+  QUARK_TRY_STATUS(retirement_queue_.create(ci));
   QUARK_OK();
 }
 
