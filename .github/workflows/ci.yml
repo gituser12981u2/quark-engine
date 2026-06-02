@@ -48,7 +48,7 @@ jobs:
             libvulkan1 \
             mesa-vulkan-drivers \
             vulkan-tools \
-            pkg-config
+            glslang-tools \
 
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
@@ -56,6 +56,7 @@ jobs:
           brew update
           command -v ninja >/dev/null 2>&1 || brew install ninja
           command -v cmake >/dev/null 2>&1 || brew install cmake
+          command -v glslangValidator >/dev/null 2>&1 || brew install glslang
 
       - name: Set up MSVC dev cmd (Windows)
         if: runner.os == 'Windows'
@@ -70,6 +71,16 @@ jobs:
           }
           if (-not (Get-Command ninja -ErrorAction SilentlyContinue)) {
             choco install -y ninja
+          }
+          if (-not (Get-Command glslangValidator -ErrorAction SilentlyContinue)) {
+            choco install -y vulkan-sdk
+            $vulkanBin = Get-ChildItem "C:/VulkanSDK" -Directory -ErrorAction SilentlyContinue |
+              Sort-Object Name -Descending |
+              Select-Object -First 1 |
+              ForEach-Object { Join-Path $_.FullName "Bin" }
+            if ($vulkanBin -and (Test-Path $vulkanBin)) {
+              Add-Content -Path $env:GITHUB_PATH -Value $vulkanBin
+            }
           }
 
       - name: Bootstrap vcpkg (macOS/Linux)
