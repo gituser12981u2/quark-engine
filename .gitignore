@@ -6,16 +6,10 @@ logs/
 CMakeFiles/
 latex
 html
-# macOS
+# macOS (pleb)
 .DS_Store
-.idea
- # i was trying jet brains lol
 vcpkg/buildtrees/
 vcpkg/downloads/
 vcpkg/packages/
 vcpkg/installed/
-**/.*.spv
-**/.*.frag
-**/.*.vert
-src/backend/shaders
 vcpkg
