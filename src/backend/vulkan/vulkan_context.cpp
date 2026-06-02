@@ -35,8 +35,8 @@ using std::vector;
 namespace {
 
 struct RetireTestPayload {
-  uint64_t id = 0;
-  uint64_t retire_at = 0;
+  uint64_t id{};
+  uint64_t retire_at{};
 };
 
 void retire_test_run(void *ctx) noexcept {
@@ -106,8 +106,8 @@ constexpr array<const char *, 1> kValidationLayers{
     "VK_LAYER_KHRONOS_validation",
 };
 
-auto api_version_at_least(uint32_t version, uint32_t major, uint32_t minor)
-    -> bool {
+constexpr auto api_version_at_least(uint32_t version, uint32_t major,
+                                    uint32_t minor) -> bool {
   if (VK_VERSION_MAJOR(version) != major) {
     return VK_VERSION_MAJOR(version) > major;
   }
@@ -133,7 +133,7 @@ auto choose_instance_api_version() -> uint32_t {
 }
 
 auto check_validation_layer_support() -> bool {
-  uint32_t layer_count{0};
+  uint32_t layer_count{};
   vkEnumerateInstanceLayerProperties(&layer_count, nullptr);
 
   vector<VkLayerProperties> available_layers(layer_count);
@@ -207,7 +207,7 @@ util::Status VulkanContext::create_triangle_pipeline() { // NOLINT
       (void)fclose(file);
       return false;
     }
-    long size = ftell(file);
+    auto size = ftell(file);
     if (fseek(file, 0, SEEK_SET) != 0) {
       (void)fclose(file);
       return false;
@@ -217,13 +217,13 @@ util::Status VulkanContext::create_triangle_pipeline() { // NOLINT
       return false;
     }
     out.resize(size / 4);
-    size_t read = fread(out.data(), 1, size, file);
+    auto read = fread(out.data(), 1, size, file);
     int close_res = fclose(file);
     return (read == static_cast<size_t>(size) && close_res == 0);
   };
 
-  std::vector<uint32_t> vert_spv;
-  std::vector<uint32_t> frag_spv;
+  vector<uint32_t> vert_spv;
+  vector<uint32_t> frag_spv;
   if (!read_spv("src/backend/shaders/basic_triangle/spv/triangle.vert.spv",
                 vert_spv)) {
     return util::unexpected(
@@ -237,9 +237,7 @@ util::Status VulkanContext::create_triangle_pipeline() { // NOLINT
                   "Failed to read triangle fragment SPIR-V shader file"));
   }
   if (!read_spv("src/backend/shaders/basic_triangle/spv/triangle.vert.spv",
-                vert_spv) ||
-      !read_spv("src/backend/shaders/basic_triangle/spv/triangle.frag.spv",
-                frag_spv)) {
+                vert_spv)) {
     return util::unexpected(QUARK_ERR(
         util::Errc::ApiError, "Failed to read triangle SPIR-V shader files"));
   }
@@ -276,8 +274,8 @@ util::Status VulkanContext::create_triangle_pipeline() { // NOLINT
   binding.stride = sizeof(float) * 5;
   binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-  VkVertexInputAttributeDescription attribs[2] = {}; // NOLINT
-  attribs[0].location = 0;                           // inPosition
+  array<VkVertexInputAttributeDescription, 2> attribs{};
+  attribs[0].location = 0; // inPosition
   attribs[0].binding = 0;
   attribs[0].format = VK_FORMAT_R32G32_SFLOAT;
   attribs[0].offset = 0;
@@ -292,7 +290,7 @@ util::Status VulkanContext::create_triangle_pipeline() { // NOLINT
   vertex_input.vertexBindingDescriptionCount = 1;
   vertex_input.pVertexBindingDescriptions = &binding;
   vertex_input.vertexAttributeDescriptionCount = 2;
-  vertex_input.pVertexAttributeDescriptions = attribs;
+  vertex_input.pVertexAttributeDescriptions = attribs.data();
 
   VkPipelineInputAssemblyStateCreateInfo input_assembly{};
   input_assembly.sType =
@@ -300,7 +298,7 @@ util::Status VulkanContext::create_triangle_pipeline() { // NOLINT
   input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
   input_assembly.primitiveRestartEnable = VK_FALSE;
 
-  VkPipelineShaderStageCreateInfo stages[2] = {}; // NOLINT
+  array<VkPipelineShaderStageCreateInfo, 2> stages{};
   stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
   stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
   stages[0].module = triangle_vert_shader_;
@@ -355,12 +353,14 @@ util::Status VulkanContext::create_triangle_pipeline() { // NOLINT
   color_blend.attachmentCount = 1;
   color_blend.pAttachments = &color_blend_attachment;
 
-  VkDynamicState dynamic_states[] = {VK_DYNAMIC_STATE_VIEWPORT, // NOLINT
-                                     VK_DYNAMIC_STATE_SCISSOR};
+  constexpr array<VkDynamicState, 2> dynamic_states = {
+      VK_DYNAMIC_STATE_VIEWPORT,
+      VK_DYNAMIC_STATE_SCISSOR,
+  };
   VkPipelineDynamicStateCreateInfo dynamic_state{};
   dynamic_state.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
   dynamic_state.dynamicStateCount = 2;
-  dynamic_state.pDynamicStates = dynamic_states;
+  dynamic_state.pDynamicStates = dynamic_states.data();
 
   VkFormat color_format = presenter_.swapchain().format();
 
@@ -373,7 +373,7 @@ util::Status VulkanContext::create_triangle_pipeline() { // NOLINT
   pipeline_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
   pipeline_info.pNext = &rendering_info;
   pipeline_info.stageCount = 2;
-  pipeline_info.pStages = stages;
+  pipeline_info.pStages = stages.data();
   pipeline_info.pVertexInputState = &vertex_input;
   pipeline_info.pInputAssemblyState = &input_assembly;
   pipeline_info.pViewportState = &viewport_state;
@@ -414,16 +414,16 @@ void VulkanContext::destroy_triangle_pipeline() {
   }
 }
 
-util::Status VulkanContext::create_triangle_vertex_buffer() { // NOLINT
+util::Status VulkanContext::create_triangle_vertex_buffer() {
   // Vertex data: 3 vertices, each with vec2 position and vec3 color
-  const float triangle_vertices[] = {
+  constexpr array<float, 15> triangle_vertices = {
       //  x,     y,     r,   g,   b
       0.0F,  -0.5F, 1.0F, 0.0F, 0.0F, // bottom center, red
       0.5F,  0.5F,  0.0F, 1.0F, 0.0F, // top right, green
       -0.5F, 0.5F,  0.0F, 0.0F, 1.0F  // top left, blue
   };
   triangle_vertex_count_ = 3;
-  VkDeviceSize buffer_size = sizeof(triangle_vertices);
+  constexpr VkDeviceSize buffer_size = sizeof(triangle_vertices);
 
   VkBufferCreateInfo buffer_info{};
   buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -445,8 +445,8 @@ util::Status VulkanContext::create_triangle_vertex_buffer() { // NOLINT
   // Find host-visible memory type
   VkPhysicalDeviceMemoryProperties mem_props;
   vkGetPhysicalDeviceMemoryProperties(device_.vk_physical_device(), &mem_props);
-  uint32_t memory_type_index = UINT32_MAX;
-  for (uint32_t i = 0; i < mem_props.memoryTypeCount; ++i) {
+  uint32_t memory_type_index{UINT32_MAX};
+  for (uint32_t i{}; i < mem_props.memoryTypeCount; ++i) {
     bool is_type = (mem_reqs.memoryTypeBits & (1 << i)) != 0;
     bool is_visible = (mem_props.memoryTypes[i].propertyFlags &
                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) != 0;
@@ -473,7 +473,7 @@ util::Status VulkanContext::create_triangle_vertex_buffer() { // NOLINT
   void *data = nullptr;
   QUARK_VK_TRY(vkMapMemory(device_.vk_device(), triangle_vertex_memory_, 0,
                            buffer_size, 0, &data));
-  std::memcpy(data, triangle_vertices, static_cast<size_t>(buffer_size));
+  std::memcpy(data, triangle_vertices.data(), static_cast<size_t>(buffer_size));
   vkUnmapMemory(device_.vk_device(), triangle_vertex_memory_);
 
   QUARK_OK();
@@ -829,7 +829,7 @@ util::Status VulkanContext::record_command_buffer(uint32_t image_index) {
     cmd_begin_rendering_(cb, &rendering_info);
 
     vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, triangle_pipeline_);
-    VkViewport viewport{};
+    VkViewport viewport;
     viewport.x = 0.0F;
     viewport.y = 0.0F;
     viewport.width = static_cast<float>(presenter_.swapchain().extent().width);
@@ -839,11 +839,11 @@ util::Status VulkanContext::record_command_buffer(uint32_t image_index) {
     viewport.maxDepth = 1.0F;
     vkCmdSetViewport(cb, 0, 1, &viewport);
     VkRect2D scissor{};
-    scissor.offset = {0, 0};
+    scissor.offset = {.x = 0, .y = 0};
     scissor.extent = presenter_.swapchain().extent();
     vkCmdSetScissor(cb, 0, 1, &scissor);
-    VkDeviceSize offsets[] = {0};
-    vkCmdBindVertexBuffers(cb, 0, 1, &triangle_vertex_buffer_, offsets);
+    array<VkDeviceSize, 1> offsets = {0};
+    vkCmdBindVertexBuffers(cb, 0, 1, &triangle_vertex_buffer_, offsets.data());
     vkCmdDraw(cb, triangle_vertex_count_, 1, 0, 0);
 
     cmd_end_rendering_(cb);
@@ -890,8 +890,8 @@ util::Status VulkanContext::record_command_buffer(uint32_t image_index) {
     scissor.offset = {.x = 0, .y = 0};
     scissor.extent = presenter_.swapchain().extent();
     vkCmdSetScissor(cb, 0, 1, &scissor);
-    VkDeviceSize offsets[] = {0};
-    vkCmdBindVertexBuffers(cb, 0, 1, &triangle_vertex_buffer_, offsets);
+    array<VkDeviceSize, 1> offsets{0};
+    vkCmdBindVertexBuffers(cb, 0, 1, &triangle_vertex_buffer_, offsets.data());
     vkCmdDraw(cb, triangle_vertex_count_, 1, 0, 0);
     vkCmdEndRenderPass(cb);
   }
@@ -931,8 +931,8 @@ util::Status VulkanContext::submit_frame(VkCommandBuffer command_buffer,
     cb_info.commandBuffer = command_buffer;
     cb_info.deviceMask = 0;
 
-    const std::array<VkSemaphoreSubmitInfo, 2> signals = {signal_sem_bin,
-                                                          signal_sem_tl};
+    const array<VkSemaphoreSubmitInfo, 2> signals = {signal_sem_bin,
+                                                     signal_sem_tl};
 
     VkSubmitInfo2 submit_info{};
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
@@ -949,11 +949,11 @@ util::Status VulkanContext::submit_frame(VkCommandBuffer command_buffer,
     QUARK_OK();
   }
 
-  const VkPipelineStageFlags wait_stage =
+  constexpr VkPipelineStageFlags wait_stage =
       VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-  const std::array<VkSemaphore, 2> signal_semaphores = {
-      render_finished, gpu_timeline_.semaphore()};
-  const std::array<uint64_t, 2> signal_values = {0, signal_value};
+  const array<VkSemaphore, 2> signal_semaphores = {render_finished,
+                                                   gpu_timeline_.semaphore()};
+  const array<uint64_t, 2> signal_values = {0, signal_value};
 
   VkTimelineSemaphoreSubmitInfo timeline_info{};
   timeline_info.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
@@ -985,8 +985,8 @@ util::Status VulkanContext::draw_frame() {
   QUARK_FAIL(QUARK_ERR(util::Errc::Unsupported,
                        "draw_frame is unavailable in headless mode"));
 #endif
+  auto drained{0UZ};
 
-  std::size_t drained = 0;
   QUARK_TRY_ASSIGN(drained, retirement_queue_.drain());
   (void)drained;
 
@@ -997,7 +997,7 @@ util::Status VulkanContext::draw_frame() {
   QUARK_TRY_STATUS(gpu_timeline_.wait(frame_value));
 
   // Acquire image
-  uint32_t image_index = 0;
+  uint32_t image_index{};
   const VkResult acquire_result = vkAcquireNextImageKHR(
       device_.vk_device(), presenter_.swapchain().handle(), UINT64_MAX,
       view.sync->image_available(current_frame_), VK_NULL_HANDLE, &image_index);
@@ -1023,12 +1023,6 @@ util::Status VulkanContext::draw_frame() {
   QUARK_TRY_STATUS(submit_frame(cb, view.sync->image_available(current_frame_),
                                 view.sync->render_finished(current_frame_),
                                 signal_value));
-
-  // REMOVE TEST
-  // static uint64_t retire_test_id = 1;
-  // QUARK_TRY_STATUS(
-  //     enqueue_retire_test(retirement_queue_, signal_value,
-  //     retire_test_id++));
 
   view.sync->mark_submitted(current_frame_, signal_value);
   images_in_flight_[image_index] = signal_value;
@@ -1078,8 +1072,8 @@ void VulkanContext::cleanup_swapchain() {
 }
 
 util::Status VulkanContext::recreate_swapchain() {
-  int width{0};
-  int height{0};
+  int width{};
+  int height{};
   while (width == 0 || height == 0) {
     window_->framebuffer_size(width, height);
     window_->wait_events();
