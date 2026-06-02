@@ -102,8 +102,23 @@ private:
 
   vector<uint64_t> images_in_flight_;
   vector<bool> swapchain_images_initialized_;
-  uint32_t current_frame_{0};
+  uint32_t current_frame_{};
 #endif
+
+  // Triangle rendering resources
+  VkPipeline triangle_pipeline_{VK_NULL_HANDLE};
+  VkPipelineLayout triangle_pipeline_layout_{VK_NULL_HANDLE};
+  VkShaderModule triangle_vert_shader_{VK_NULL_HANDLE};
+  VkShaderModule triangle_frag_shader_{VK_NULL_HANDLE};
+  VkBuffer triangle_vertex_buffer_{VK_NULL_HANDLE};
+  VkDeviceMemory triangle_vertex_memory_{VK_NULL_HANDLE};
+  uint32_t triangle_vertex_count_{};
+
+  // Triangle setup/cleanup
+  util::Status create_triangle_pipeline();
+  void destroy_triangle_pipeline();
+  util::Status create_triangle_vertex_buffer();
+  void destroy_triangle_vertex_buffer();
 };
 
 } // namespace quark::vk

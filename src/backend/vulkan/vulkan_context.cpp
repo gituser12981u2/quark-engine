@@ -190,7 +190,306 @@ void destroy_probe_surface(VkInstance instance,
 
 } // namespace
 
+// ADRIAN, DO WE USE std::filesystem instead, or stick with this API?
+//  Not sure if this will work on Windows, LET CI TELL ME )))))
+
 namespace quark::vk {
+
+// --- Triangle setup/cleanup --- Delete this later once we're happy
+util::Status VulkanContext::create_triangle_pipeline() { // NOLINT
+
+  auto read_spv = [](const char *path, std::vector<uint32_t> &out) -> bool {
+    FILE *file = fopen(path, "rb");
+    if (!file) {
+      return false;
+    }
+    if (fseek(file, 0, SEEK_END) != 0) {
+      (void)fclose(file);
+      return false;
+    }
+    long size = ftell(file);
+    if (fseek(file, 0, SEEK_SET) != 0) {
+      (void)fclose(file);
+      return false;
+    }
+    if (size <= 0 || size % 4 != 0) {
+      (void)fclose(file);
+      return false;
+    }
+    out.resize(size / 4);
+    size_t read = fread(out.data(), 1, size, file);
+    int close_res = fclose(file);
+    return (read == static_cast<size_t>(size) && close_res == 0);
+  };
+
+  std::vector<uint32_t> vert_spv;
+  std::vector<uint32_t> frag_spv;
+  if (!read_spv("src/backend/shaders/basic_triangle/spv/triangle.vert.spv",
+                vert_spv)) {
+    return util::unexpected(
+        QUARK_ERR(util::Errc::ApiError,
+                  "Failed to read triangle vertex SPIR-V shader file"));
+  }
+  if (!read_spv("src/backend/shaders/basic_triangle/spv/triangle.frag.spv",
+                frag_spv)) {
+    return util::unexpected(
+        QUARK_ERR(util::Errc::ApiError,
+                  "Failed to read triangle fragment SPIR-V shader file"));
+  }
+  if (!read_spv("src/backend/shaders/basic_triangle/spv/triangle.vert.spv",
+                vert_spv) ||
+      !read_spv("src/backend/shaders/basic_triangle/spv/triangle.frag.spv",
+                frag_spv)) {
+    return util::unexpected(QUARK_ERR(
+        util::Errc::ApiError, "Failed to read triangle SPIR-V shader files"));
+  }
+
+  VkDevice device = device_.vk_device();
+
+  VkShaderModuleCreateInfo vert_info{};
+  vert_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+  vert_info.codeSize = vert_spv.size() * sizeof(uint32_t);
+  vert_info.pCode = vert_spv.data();
+  QUARK_VK_TRY(vkCreateShaderModule(device, &vert_info, nullptr,
+                                    &triangle_vert_shader_));
+
+  VkShaderModuleCreateInfo frag_info{};
+  frag_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+  frag_info.codeSize = frag_spv.size() * sizeof(uint32_t);
+  frag_info.pCode = frag_spv.data();
+  QUARK_VK_TRY(vkCreateShaderModule(device, &frag_info, nullptr,
+                                    &triangle_frag_shader_));
+
+  // Pipeline layout (no uniforms for basic triangle)
+  VkPipelineLayoutCreateInfo layout_info{};
+  layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+  layout_info.setLayoutCount = 0;
+  layout_info.pSetLayouts = nullptr;
+  layout_info.pushConstantRangeCount = 0;
+  layout_info.pPushConstantRanges = nullptr;
+  QUARK_VK_TRY(vkCreatePipelineLayout(device, &layout_info, nullptr,
+                                      &triangle_pipeline_layout_));
+
+  // Vertex input: vec2 position, vec3 color
+  VkVertexInputBindingDescription binding{};
+  binding.binding = 0;
+  binding.stride = sizeof(float) * 5;
+  binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+  VkVertexInputAttributeDescription attribs[2] = {}; // NOLINT
+  attribs[0].location = 0;                           // inPosition
+  attribs[0].binding = 0;
+  attribs[0].format = VK_FORMAT_R32G32_SFLOAT;
+  attribs[0].offset = 0;
+  attribs[1].location = 1; // inColor
+  attribs[1].binding = 0;
+  attribs[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+  attribs[1].offset = sizeof(float) * 2;
+
+  VkPipelineVertexInputStateCreateInfo vertex_input{};
+  vertex_input.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+  vertex_input.vertexBindingDescriptionCount = 1;
+  vertex_input.pVertexBindingDescriptions = &binding;
+  vertex_input.vertexAttributeDescriptionCount = 2;
+  vertex_input.pVertexAttributeDescriptions = attribs;
+
+  VkPipelineInputAssemblyStateCreateInfo input_assembly{};
+  input_assembly.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+  input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+  input_assembly.primitiveRestartEnable = VK_FALSE;
+
+  VkPipelineShaderStageCreateInfo stages[2] = {}; // NOLINT
+  stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+  stages[0].module = triangle_vert_shader_;
+  stages[0].pName = "main";
+  stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+  stages[1].module = triangle_frag_shader_;
+  stages[1].pName = "main";
+
+  VkViewport viewport{};
+  viewport.x = 0.0F;
+  viewport.y = 0.0F;
+  viewport.width = static_cast<float>(presenter_.swapchain().extent().width);
+  viewport.height = static_cast<float>(presenter_.swapchain().extent().height);
+  viewport.minDepth = 0.0F;
+  viewport.maxDepth = 1.0F;
+
+  VkRect2D scissor{};
+  scissor.offset = {.x = 0, .y = 0};
+  scissor.extent = presenter_.swapchain().extent();
+
+  VkPipelineViewportStateCreateInfo viewport_state{};
+  viewport_state.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+  viewport_state.viewportCount = 1;
+  viewport_state.pViewports = &viewport;
+  viewport_state.scissorCount = 1;
+  viewport_state.pScissors = &scissor;
+
+  VkPipelineRasterizationStateCreateInfo rasterizer{};
+  rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+  rasterizer.depthClampEnable = VK_FALSE;
+  rasterizer.rasterizerDiscardEnable = VK_FALSE;
+  rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+  rasterizer.lineWidth = 1.0F;
+  rasterizer.cullMode = VK_CULL_MODE_NONE;
+  rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+  rasterizer.depthBiasEnable = VK_FALSE;
+
+  VkPipelineMultisampleStateCreateInfo multisample{};
+  multisample.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+  multisample.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+  VkPipelineColorBlendAttachmentState color_blend_attachment{};
+  color_blend_attachment.colorWriteMask =
+      VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+      VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+  color_blend_attachment.blendEnable = VK_FALSE;
+
+  VkPipelineColorBlendStateCreateInfo color_blend{};
+  color_blend.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+  color_blend.logicOpEnable = VK_FALSE;
+  color_blend.attachmentCount = 1;
+  color_blend.pAttachments = &color_blend_attachment;
+
+  VkDynamicState dynamic_states[] = {VK_DYNAMIC_STATE_VIEWPORT, // NOLINT
+                                     VK_DYNAMIC_STATE_SCISSOR};
+  VkPipelineDynamicStateCreateInfo dynamic_state{};
+  dynamic_state.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+  dynamic_state.dynamicStateCount = 2;
+  dynamic_state.pDynamicStates = dynamic_states;
+
+  VkFormat color_format = presenter_.swapchain().format();
+
+  VkPipelineRenderingCreateInfo rendering_info{};
+  rendering_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
+  rendering_info.colorAttachmentCount = 1;
+  rendering_info.pColorAttachmentFormats = &color_format;
+
+  VkGraphicsPipelineCreateInfo pipeline_info{};
+  pipeline_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+  pipeline_info.pNext = &rendering_info;
+  pipeline_info.stageCount = 2;
+  pipeline_info.pStages = stages;
+  pipeline_info.pVertexInputState = &vertex_input;
+  pipeline_info.pInputAssemblyState = &input_assembly;
+  pipeline_info.pViewportState = &viewport_state;
+  pipeline_info.pRasterizationState = &rasterizer;
+  pipeline_info.pMultisampleState = &multisample;
+  pipeline_info.pDepthStencilState = nullptr;
+  pipeline_info.pColorBlendState = &color_blend;
+  pipeline_info.pDynamicState = &dynamic_state;
+  pipeline_info.layout = triangle_pipeline_layout_;
+  pipeline_info.renderPass = VK_NULL_HANDLE; // dynamic rendering
+  pipeline_info.subpass = 0;
+  pipeline_info.basePipelineHandle = VK_NULL_HANDLE;
+  pipeline_info.basePipelineIndex = -1;
+
+  QUARK_VK_TRY(vkCreateGraphicsPipelines(
+      device, VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &triangle_pipeline_));
+
+  QUARK_OK();
+}
+
+void VulkanContext::destroy_triangle_pipeline() {
+  VkDevice device = device_.vk_device();
+  if (triangle_pipeline_ != VK_NULL_HANDLE) {
+    vkDestroyPipeline(device, triangle_pipeline_, nullptr);
+    triangle_pipeline_ = VK_NULL_HANDLE;
+  }
+  if (triangle_pipeline_layout_ != VK_NULL_HANDLE) {
+    vkDestroyPipelineLayout(device, triangle_pipeline_layout_, nullptr);
+    triangle_pipeline_layout_ = VK_NULL_HANDLE;
+  }
+  if (triangle_vert_shader_ != VK_NULL_HANDLE) {
+    vkDestroyShaderModule(device, triangle_vert_shader_, nullptr);
+    triangle_vert_shader_ = VK_NULL_HANDLE;
+  }
+  if (triangle_frag_shader_ != VK_NULL_HANDLE) {
+    vkDestroyShaderModule(device, triangle_frag_shader_, nullptr);
+    triangle_frag_shader_ = VK_NULL_HANDLE;
+  }
+}
+
+util::Status VulkanContext::create_triangle_vertex_buffer() { // NOLINT
+  // Vertex data: 3 vertices, each with vec2 position and vec3 color
+  const float triangle_vertices[] = {
+      //  x,     y,     r,   g,   b
+      0.0F,  -0.5F, 1.0F, 0.0F, 0.0F, // bottom center, red
+      0.5F,  0.5F,  0.0F, 1.0F, 0.0F, // top right, green
+      -0.5F, 0.5F,  0.0F, 0.0F, 1.0F  // top left, blue
+  };
+  triangle_vertex_count_ = 3;
+  VkDeviceSize buffer_size = sizeof(triangle_vertices);
+
+  VkBufferCreateInfo buffer_info{};
+  buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+  buffer_info.size = buffer_size;
+  buffer_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+  buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+  QUARK_VK_TRY(vkCreateBuffer(device_.vk_device(), &buffer_info, nullptr,
+                              &triangle_vertex_buffer_));
+
+  VkMemoryRequirements mem_reqs;
+  vkGetBufferMemoryRequirements(device_.vk_device(), triangle_vertex_buffer_,
+                                &mem_reqs);
+
+  VkMemoryAllocateInfo alloc_info{};
+  alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+  alloc_info.allocationSize = mem_reqs.size;
+
+  // Find host-visible memory type
+  VkPhysicalDeviceMemoryProperties mem_props;
+  vkGetPhysicalDeviceMemoryProperties(device_.vk_physical_device(), &mem_props);
+  uint32_t memory_type_index = UINT32_MAX;
+  for (uint32_t i = 0; i < mem_props.memoryTypeCount; ++i) {
+    bool is_type = (mem_reqs.memoryTypeBits & (1 << i)) != 0;
+    bool is_visible = (mem_props.memoryTypes[i].propertyFlags &
+                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) != 0;
+    bool is_coherent = (mem_props.memoryTypes[i].propertyFlags &
+                        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) != 0;
+    if (is_type && is_visible && is_coherent) {
+      memory_type_index = i;
+      break;
+    }
+  }
+  if (memory_type_index == UINT32_MAX) {
+    return util::unexpected(
+        QUARK_ERR(util::Errc::ApiError,
+                  "No suitable memory type for triangle vertex buffer"));
+  }
+  alloc_info.memoryTypeIndex = memory_type_index;
+
+  QUARK_VK_TRY(vkAllocateMemory(device_.vk_device(), &alloc_info, nullptr,
+                                &triangle_vertex_memory_));
+  QUARK_VK_TRY(vkBindBufferMemory(device_.vk_device(), triangle_vertex_buffer_,
+                                  triangle_vertex_memory_, 0));
+
+  // Upload data
+  void *data = nullptr;
+  QUARK_VK_TRY(vkMapMemory(device_.vk_device(), triangle_vertex_memory_, 0,
+                           buffer_size, 0, &data));
+  std::memcpy(data, triangle_vertices, static_cast<size_t>(buffer_size));
+  vkUnmapMemory(device_.vk_device(), triangle_vertex_memory_);
+
+  QUARK_OK();
+}
+
+void VulkanContext::destroy_triangle_vertex_buffer() {
+  VkDevice device = device_.vk_device();
+  if (triangle_vertex_buffer_ != VK_NULL_HANDLE) {
+    vkDestroyBuffer(device, triangle_vertex_buffer_, nullptr);
+    triangle_vertex_buffer_ = VK_NULL_HANDLE;
+  }
+  if (triangle_vertex_memory_ != VK_NULL_HANDLE) {
+    vkFreeMemory(device, triangle_vertex_memory_, nullptr);
+    triangle_vertex_memory_ = VK_NULL_HANDLE;
+  }
+}
 
 util::Status VulkanContext::init() {
 #if !QUARK_HEADLESS
@@ -216,6 +515,10 @@ util::Status VulkanContext::init() {
   QUARK_TRY_STATUS(create_framebuffers());
 #endif
 
+  // Triangle setup
+  QUARK_TRY_STATUS(create_triangle_pipeline());
+  QUARK_TRY_STATUS(create_triangle_vertex_buffer());
+
   QUARK_OK();
 }
 
@@ -224,6 +527,9 @@ VulkanContext::~VulkanContext() {
     VkDevice device = device_.vk_device();
     vkDeviceWaitIdle(device);
   }
+
+  destroy_triangle_vertex_buffer();
+  destroy_triangle_pipeline();
 
   frame_.destroy();
   retirement_queue_.destroy();
@@ -521,6 +827,25 @@ util::Status VulkanContext::record_command_buffer(uint32_t image_index) {
     rendering_info.pColorAttachments = &color_attachment;
 
     cmd_begin_rendering_(cb, &rendering_info);
+
+    vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, triangle_pipeline_);
+    VkViewport viewport{};
+    viewport.x = 0.0F;
+    viewport.y = 0.0F;
+    viewport.width = static_cast<float>(presenter_.swapchain().extent().width);
+    viewport.height =
+        static_cast<float>(presenter_.swapchain().extent().height);
+    viewport.minDepth = 0.0F;
+    viewport.maxDepth = 1.0F;
+    vkCmdSetViewport(cb, 0, 1, &viewport);
+    VkRect2D scissor{};
+    scissor.offset = {0, 0};
+    scissor.extent = presenter_.swapchain().extent();
+    vkCmdSetScissor(cb, 0, 1, &scissor);
+    VkDeviceSize offsets[] = {0};
+    vkCmdBindVertexBuffers(cb, 0, 1, &triangle_vertex_buffer_, offsets);
+    vkCmdDraw(cb, triangle_vertex_count_, 1, 0, 0);
+
     cmd_end_rendering_(cb);
 
     VkImageMemoryBarrier2 to_present{};
@@ -550,6 +875,24 @@ util::Status VulkanContext::record_command_buffer(uint32_t image_index) {
     render_pass_info.pClearValues = &clear_color;
 
     vkCmdBeginRenderPass(cb, &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
+    // --- Triangle rendering (fallback path) ---
+    vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, triangle_pipeline_);
+    VkViewport viewport{};
+    viewport.x = 0.0F;
+    viewport.y = 0.0F;
+    viewport.width = static_cast<float>(presenter_.swapchain().extent().width);
+    viewport.height =
+        static_cast<float>(presenter_.swapchain().extent().height);
+    viewport.minDepth = 0.0F;
+    viewport.maxDepth = 1.0F;
+    vkCmdSetViewport(cb, 0, 1, &viewport);
+    VkRect2D scissor{};
+    scissor.offset = {.x = 0, .y = 0};
+    scissor.extent = presenter_.swapchain().extent();
+    vkCmdSetScissor(cb, 0, 1, &scissor);
+    VkDeviceSize offsets[] = {0};
+    vkCmdBindVertexBuffers(cb, 0, 1, &triangle_vertex_buffer_, offsets);
+    vkCmdDraw(cb, triangle_vertex_count_, 1, 0, 0);
     vkCmdEndRenderPass(cb);
   }
 

@@ -21,6 +21,7 @@ Checks: >
   # -cppcoreguidelines-pro-bounds-pointer-arithmetic,
   # -cppcoreguidelines-avoid-magic-numbers,
   cppcoreguidelines-narrowing-conversions,
+  -cppcoreguidelines-avoid-c-arrays,
   cppcoreguidelines-slicing,
   cppcoreguidelines-special-member-functions,
   cppcoreguidelines-explicit-virtual-functions,
