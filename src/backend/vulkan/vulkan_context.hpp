@@ -1,5 +1,7 @@
 #pragma once
 
+#include "quark/vk/pipeline/graphics_pipeline.hpp"
+
 #include <array>
 #include <cstdint>
 
@@ -106,8 +108,7 @@ private:
 #endif
 
   // Triangle rendering resources
-  VkPipeline triangle_pipeline_{VK_NULL_HANDLE};
-  VkPipelineLayout triangle_pipeline_layout_{VK_NULL_HANDLE};
+  GraphicsPipeline graphics_pipeline_;
   VkShaderModule triangle_vert_shader_{VK_NULL_HANDLE};
   VkShaderModule triangle_frag_shader_{VK_NULL_HANDLE};
   VkBuffer triangle_vertex_buffer_{VK_NULL_HANDLE};

@@ -5,6 +5,7 @@ add_subdirectory(instance)
 add_subdirectory(device)
 add_subdirectory(frame)
 add_subdirectory(presentation)
+add_subdirectory(pipeline)
 add_subdirectory(sync)
 
 target_link_libraries(

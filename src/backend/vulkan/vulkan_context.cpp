@@ -3,7 +3,14 @@
 // TODO: move test to testing system when possible
 #include "quark/engine/retire/retirement_queue.hpp"
 #include "quark/utils/diagnostic.hpp"
+<<<<<<< HEAD
 #include "quark/utils/error_types.hpp"
+=======
+#include "quark/vk/pipeline/graphics_pipeline.hpp"
+#include "quark/vk/pipeline/graphics_pipeline_desc.hpp"
+#include "quark/vk/pipeline/shader_stage_desc.hpp"
+#include "quark/vk/pipeline/vertex_layout.hpp"
+>>>>>>> 80accfe (squash into next commit)
 
 #include <algorithm>
 #include <array>
@@ -258,160 +265,61 @@ util::Status VulkanContext::create_triangle_pipeline() { // NOLINT
   QUARK_VK_TRY(vkCreateShaderModule(device, &frag_info, nullptr,
                                     &triangle_frag_shader_));
 
-  // Pipeline layout (no uniforms for basic triangle)
-  VkPipelineLayoutCreateInfo layout_info{};
-  layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-  layout_info.setLayoutCount = 0;
-  layout_info.pSetLayouts = nullptr;
-  layout_info.pushConstantRangeCount = 0;
-  layout_info.pPushConstantRanges = nullptr;
-  QUARK_VK_TRY(vkCreatePipelineLayout(device, &layout_info, nullptr,
-                                      &triangle_pipeline_layout_));
+  const auto bindings = Position2Color3Vertex::bindings();
+  const auto attributes = Position2Color3Vertex::attributes();
 
-  // Vertex input: vec2 position, vec3 color
-  VkVertexInputBindingDescription binding{};
-  binding.binding = 0;
-  binding.stride = sizeof(float) * 5;
-  binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-  array<VkVertexInputAttributeDescription, 2> attribs{};
-  attribs[0].location = 0; // inPosition
-  attribs[0].binding = 0;
-  attribs[0].format = VK_FORMAT_R32G32_SFLOAT;
-  attribs[0].offset = 0;
-  attribs[1].location = 1; // inColor
-  attribs[1].binding = 0;
-  attribs[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-  attribs[1].offset = sizeof(float) * 2;
-
-  VkPipelineVertexInputStateCreateInfo vertex_input{};
-  vertex_input.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-  vertex_input.vertexBindingDescriptionCount = 1;
-  vertex_input.pVertexBindingDescriptions = &binding;
-  vertex_input.vertexAttributeDescriptionCount = 2;
-  vertex_input.pVertexAttributeDescriptions = attribs.data();
-
-  VkPipelineInputAssemblyStateCreateInfo input_assembly{};
-  input_assembly.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-  input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-  input_assembly.primitiveRestartEnable = VK_FALSE;
-
-  array<VkPipelineShaderStageCreateInfo, 2> stages{};
-  stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-  stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
-  stages[0].module = triangle_vert_shader_;
-  stages[0].pName = "main";
-  stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-  stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-  stages[1].module = triangle_frag_shader_;
-  stages[1].pName = "main";
-
-  VkViewport viewport{};
-  viewport.x = 0.0F;
-  viewport.y = 0.0F;
-  viewport.width = static_cast<float>(presenter_.swapchain().extent().width);
-  viewport.height = static_cast<float>(presenter_.swapchain().extent().height);
-  viewport.minDepth = 0.0F;
-  viewport.maxDepth = 1.0F;
-
-  VkRect2D scissor{};
-  scissor.offset = {.x = 0, .y = 0};
-  scissor.extent = presenter_.swapchain().extent();
-
-  VkPipelineViewportStateCreateInfo viewport_state{};
-  viewport_state.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-  viewport_state.viewportCount = 1;
-  viewport_state.pViewports = &viewport;
-  viewport_state.scissorCount = 1;
-  viewport_state.pScissors = &scissor;
-
-  VkPipelineRasterizationStateCreateInfo rasterizer{};
-  rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-  rasterizer.depthClampEnable = VK_FALSE;
-  rasterizer.rasterizerDiscardEnable = VK_FALSE;
-  rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
-  rasterizer.lineWidth = 1.0F;
-  rasterizer.cullMode = VK_CULL_MODE_NONE;
-  rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-  rasterizer.depthBiasEnable = VK_FALSE;
-
-  VkPipelineMultisampleStateCreateInfo multisample{};
-  multisample.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-  multisample.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-
-  VkPipelineColorBlendAttachmentState color_blend_attachment{};
-  color_blend_attachment.colorWriteMask =
-      VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-      VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-  color_blend_attachment.blendEnable = VK_FALSE;
-
-  VkPipelineColorBlendStateCreateInfo color_blend{};
-  color_blend.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-  color_blend.logicOpEnable = VK_FALSE;
-  color_blend.attachmentCount = 1;
-  color_blend.pAttachments = &color_blend_attachment;
-
-  constexpr array<VkDynamicState, 2> dynamic_states = {
-      VK_DYNAMIC_STATE_VIEWPORT,
-      VK_DYNAMIC_STATE_SCISSOR,
+  const VertexLayoutDesc vertex_layout{
+      .bindings = bindings,
+      .attributes = attributes,
   };
-  VkPipelineDynamicStateCreateInfo dynamic_state{};
-  dynamic_state.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-  dynamic_state.dynamicStateCount = 2;
-  dynamic_state.pDynamicStates = dynamic_states.data();
 
-  VkFormat color_format = presenter_.swapchain().format();
+  const std::array<ShaderStageDesc, 2> stages{
+      {ShaderStageDesc{
+           .module = triangle_vert_shader_,
+           .stage = VK_SHADER_STAGE_VERTEX_BIT,
+           .entry_point = "main",
+       },
+       ShaderStageDesc{
+           .module = triangle_frag_shader_,
+           .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+           .entry_point = "main",
+       }}};
 
-  VkPipelineRenderingCreateInfo rendering_info{};
-  rendering_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
-  rendering_info.colorAttachmentCount = 1;
-  rendering_info.pColorAttachmentFormats = &color_format;
+  const std::array<ColorAttachmentDesc, 1> color_attachments{
+      ColorAttachmentDesc{
+          .format = presenter_.swapchain().format(),
+      }};
 
-  VkGraphicsPipelineCreateInfo pipeline_info{};
-  pipeline_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-  pipeline_info.pNext = &rendering_info;
-  pipeline_info.stageCount = 2;
-  pipeline_info.pStages = stages.data();
-  pipeline_info.pVertexInputState = &vertex_input;
-  pipeline_info.pInputAssemblyState = &input_assembly;
-  pipeline_info.pViewportState = &viewport_state;
-  pipeline_info.pRasterizationState = &rasterizer;
-  pipeline_info.pMultisampleState = &multisample;
-  pipeline_info.pDepthStencilState = nullptr;
-  pipeline_info.pColorBlendState = &color_blend;
-  pipeline_info.pDynamicState = &dynamic_state;
-  pipeline_info.layout = triangle_pipeline_layout_;
-  pipeline_info.renderPass = VK_NULL_HANDLE; // dynamic rendering
-  pipeline_info.subpass = 0;
-  pipeline_info.basePipelineHandle = VK_NULL_HANDLE;
-  pipeline_info.basePipelineIndex = -1;
+  const std::array<VkDynamicState, 2> dynamic_states{VK_DYNAMIC_STATE_VIEWPORT,
+                                                     VK_DYNAMIC_STATE_SCISSOR};
 
-  QUARK_VK_TRY(vkCreateGraphicsPipelines(
-      device, VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &triangle_pipeline_));
+  GraphicsPipelineDesc desc{
+      .stages = stages,
+      .vertex_layout = vertex_layout,
+      .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+      .primitive_restart_enable = false,
+      .raster = RasterStateDesc{.cull_mode = VK_CULL_MODE_NONE,
+                                .front_face = VK_FRONT_FACE_COUNTER_CLOCKWISE},
+      .color_attachments = color_attachments,
+      .dynamic_states = dynamic_states,
+      .backend = render_path_ == RenderPath::Vulkan13DynamicRendering
+                     ? PipelineRenderBackend::DynamicRendering
+                     : PipelineRenderBackend::RenderPass,
+      .render_pass = render_pass_,
+  };
 
+  GraphicsPipeline::CreateInfo ci{
+      .device = device_.vk_device(),
+      .extent = presenter_.swapchain().extent(),
+      .desc = &desc,
+  };
+
+  QUARK_TRY_STATUS(graphics_pipeline_.create(ci));
   QUARK_OK();
 }
 
 void VulkanContext::destroy_triangle_pipeline() {
-  VkDevice device = device_.vk_device();
-  if (triangle_pipeline_ != VK_NULL_HANDLE) {
-    vkDestroyPipeline(device, triangle_pipeline_, nullptr);
-    triangle_pipeline_ = VK_NULL_HANDLE;
-  }
-  if (triangle_pipeline_layout_ != VK_NULL_HANDLE) {
-    vkDestroyPipelineLayout(device, triangle_pipeline_layout_, nullptr);
-    triangle_pipeline_layout_ = VK_NULL_HANDLE;
-  }
-  if (triangle_vert_shader_ != VK_NULL_HANDLE) {
-    vkDestroyShaderModule(device, triangle_vert_shader_, nullptr);
-    triangle_vert_shader_ = VK_NULL_HANDLE;
-  }
-  if (triangle_frag_shader_ != VK_NULL_HANDLE) {
-    vkDestroyShaderModule(device, triangle_frag_shader_, nullptr);
-    triangle_frag_shader_ = VK_NULL_HANDLE;
-  }
+  graphics_pipeline_.destroy();
 }
 
 util::Status VulkanContext::create_triangle_vertex_buffer() {
@@ -828,8 +736,10 @@ util::Status VulkanContext::record_command_buffer(uint32_t image_index) {
 
     cmd_begin_rendering_(cb, &rendering_info);
 
-    vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, triangle_pipeline_);
-    VkViewport viewport;
+    vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      graphics_pipeline_.pipeline());
+    VkViewport viewport{};
+
     viewport.x = 0.0F;
     viewport.y = 0.0F;
     viewport.width = static_cast<float>(presenter_.swapchain().extent().width);
@@ -876,7 +786,8 @@ util::Status VulkanContext::record_command_buffer(uint32_t image_index) {
 
     vkCmdBeginRenderPass(cb, &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
     // --- Triangle rendering (fallback path) ---
-    vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, triangle_pipeline_);
+    vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      graphics_pipeline_.pipeline());
     VkViewport viewport{};
     viewport.x = 0.0F;
     viewport.y = 0.0F;
