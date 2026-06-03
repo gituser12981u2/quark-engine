@@ -60,7 +60,7 @@ void FrameBundle::retire(uint64_t retire_at) noexcept {
     return;
   }
 
-  registry_.destory(handle_, retire_at);
+  registry_.destroy(handle_, retire_at);
   handle_ = details::FrameHandle{};
 }
 
