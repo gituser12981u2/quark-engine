@@ -1,17 +1,5 @@
 #include "vulkan_context.hpp"
 
-// TODO: move test to testing system when possible
-#include "quark/engine/retire/retirement_queue.hpp"
-#include "quark/utils/diagnostic.hpp"
-<<<<<<< HEAD
-#include "quark/utils/error_types.hpp"
-=======
-#include "quark/vk/pipeline/graphics_pipeline.hpp"
-#include "quark/vk/pipeline/graphics_pipeline_desc.hpp"
-#include "quark/vk/pipeline/shader_stage_desc.hpp"
-#include "quark/vk/pipeline/vertex_layout.hpp"
->>>>>>> 80accfe (squash into next commit)
-
 #include <algorithm>
 #include <array>
 #include <bit>
@@ -27,8 +15,14 @@
 #include <quark/platform/window/interface_query.hpp>
 #endif
 
+#include <quark/engine/retire/retirement_queue.hpp>
+#include <quark/platform/shader/shader_handle.hpp>
 #include <quark/vk/diagnostic_prelude.hpp>
 #include <quark/vk/instance/instance_bundle.hpp>
+#include <quark/vk/pipeline/graphics_pipeline.hpp>
+#include <quark/vk/pipeline/graphics_pipeline_desc.hpp>
+#include <quark/vk/pipeline/shader_stage_desc.hpp>
+#include <quark/vk/pipeline/vertex_layout.hpp>
 #include <quark/vk/surface_source.hpp>
 #include <quark/vk/sync/gpu_timeline.hpp>
 #include <string_view>
@@ -197,73 +191,20 @@ void destroy_probe_surface(VkInstance instance,
 
 } // namespace
 
-// ADRIAN, DO WE USE std::filesystem instead, or stick with this API?
-//  Not sure if this will work on Windows, LET CI TELL ME )))))
-
 namespace quark::vk {
 
 // --- Triangle setup/cleanup --- Delete this later once we're happy
-util::Status VulkanContext::create_triangle_pipeline() { // NOLINT
+util::Status VulkanContext::create_triangle_pipeline() {
+  ShaderHandle vert_shader{};
+  ShaderHandle frag_shader{};
 
-  auto read_spv = [](const char *path, std::vector<uint32_t> &out) -> bool {
-    FILE *file = fopen(path, "rb");
-    if (!file) {
-      return false;
-    }
-    if (fseek(file, 0, SEEK_END) != 0) {
-      (void)fclose(file);
-      return false;
-    }
-    auto size = ftell(file);
-    if (fseek(file, 0, SEEK_SET) != 0) {
-      (void)fclose(file);
-      return false;
-    }
-    if (size <= 0 || size % 4 != 0) {
-      (void)fclose(file);
-      return false;
-    }
-    out.resize(size / 4);
-    auto read = fread(out.data(), 1, size, file);
-    int close_res = fclose(file);
-    return (read == static_cast<size_t>(size) && close_res == 0);
-  };
+  QUARK_TRY_ASSIGN(vert_shader, shader_registry_.load_spv_file(
+                                    "src/backend/shaders/spv/triangle.vert.spv",
+                                    VK_SHADER_STAGE_VERTEX_BIT));
 
-  vector<uint32_t> vert_spv;
-  vector<uint32_t> frag_spv;
-  if (!read_spv("src/backend/shaders/basic_triangle/spv/triangle.vert.spv",
-                vert_spv)) {
-    return util::unexpected(
-        QUARK_ERR(util::Errc::ApiError,
-                  "Failed to read triangle vertex SPIR-V shader file"));
-  }
-  if (!read_spv("src/backend/shaders/basic_triangle/spv/triangle.frag.spv",
-                frag_spv)) {
-    return util::unexpected(
-        QUARK_ERR(util::Errc::ApiError,
-                  "Failed to read triangle fragment SPIR-V shader file"));
-  }
-  if (!read_spv("src/backend/shaders/basic_triangle/spv/triangle.vert.spv",
-                vert_spv)) {
-    return util::unexpected(QUARK_ERR(
-        util::Errc::ApiError, "Failed to read triangle SPIR-V shader files"));
-  }
-
-  VkDevice device = device_.vk_device();
-
-  VkShaderModuleCreateInfo vert_info{};
-  vert_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-  vert_info.codeSize = vert_spv.size() * sizeof(uint32_t);
-  vert_info.pCode = vert_spv.data();
-  QUARK_VK_TRY(vkCreateShaderModule(device, &vert_info, nullptr,
-                                    &triangle_vert_shader_));
-
-  VkShaderModuleCreateInfo frag_info{};
-  frag_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-  frag_info.codeSize = frag_spv.size() * sizeof(uint32_t);
-  frag_info.pCode = frag_spv.data();
-  QUARK_VK_TRY(vkCreateShaderModule(device, &frag_info, nullptr,
-                                    &triangle_frag_shader_));
+  QUARK_TRY_ASSIGN(frag_shader, shader_registry_.load_spv_file(
+                                    "src/backend/shaders/spv/triangle.frag.spv",
+                                    VK_SHADER_STAGE_FRAGMENT_BIT));
 
   const auto bindings = Position2Color3Vertex::bindings();
   const auto attributes = Position2Color3Vertex::attributes();
@@ -275,12 +216,12 @@ util::Status VulkanContext::create_triangle_pipeline() { // NOLINT
 
   const std::array<ShaderStageDesc, 2> stages{
       {ShaderStageDesc{
-           .module = triangle_vert_shader_,
+           .shader = vert_shader,
            .stage = VK_SHADER_STAGE_VERTEX_BIT,
            .entry_point = "main",
        },
        ShaderStageDesc{
-           .module = triangle_frag_shader_,
+           .shader = frag_shader,
            .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
            .entry_point = "main",
        }}};
@@ -312,6 +253,7 @@ util::Status VulkanContext::create_triangle_pipeline() { // NOLINT
       .device = device_.vk_device(),
       .extent = presenter_.swapchain().extent(),
       .desc = &desc,
+      .shaders = &shader_registry_,
   };
 
   QUARK_TRY_STATUS(graphics_pipeline_.create(ci));
@@ -322,6 +264,8 @@ void VulkanContext::destroy_triangle_pipeline() {
   graphics_pipeline_.destroy();
 }
 
+// TODO: make an abstracted buffer with VMA. VMA should probably be part of the
+// device bundle
 util::Status VulkanContext::create_triangle_vertex_buffer() {
   // Vertex data: 3 vertices, each with vec2 position and vec3 color
   constexpr array<float, 15> triangle_vertices = {
@@ -410,6 +354,8 @@ util::Status VulkanContext::init() {
   QUARK_TRY_STATUS(create_gpu_timeline());
   QUARK_TRY_STATUS(create_retirement_queue());
 
+  QUARK_TRY_STATUS(shader_registry_.create({.device = device_.vk_device()}));
+
 #if !QUARK_HEADLESS
   QUARK_TRY_STATUS(create_presenter());
 
@@ -448,6 +394,7 @@ VulkanContext::~VulkanContext() {
   presenter_.destroy();
 #endif
 
+  shader_registry_.destroy();
   device_.destroy();
   instance_.destroy();
 }

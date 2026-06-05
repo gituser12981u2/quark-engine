@@ -1,5 +1,6 @@
 #pragma once
 
+#include "quark/platform/shader/details/shader_registry.hpp"
 #include "quark/vk/pipeline/graphics_pipeline.hpp"
 
 #include <array>
@@ -107,10 +108,10 @@ private:
   uint32_t current_frame_{};
 #endif
 
-  // Triangle rendering resources
   GraphicsPipeline graphics_pipeline_;
-  VkShaderModule triangle_vert_shader_{VK_NULL_HANDLE};
-  VkShaderModule triangle_frag_shader_{VK_NULL_HANDLE};
+  ShaderRegistry shader_registry_;
+
+  // Triangle rendering resources
   VkBuffer triangle_vertex_buffer_{VK_NULL_HANDLE};
   VkDeviceMemory triangle_vertex_memory_{VK_NULL_HANDLE};
   uint32_t triangle_vertex_count_{};

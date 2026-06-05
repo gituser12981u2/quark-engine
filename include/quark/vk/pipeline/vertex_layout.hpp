@@ -7,6 +7,13 @@
 
 namespace quark::vk {
 
+/**
+ * @class VertexAttributeDesc
+ * @brief Describes a single vertex attribute.
+ *
+ * Vertex attributes define how elements of a vertex are mapped to shader input
+ * locations.
+ */
 struct VertexAttributeDesc {
   uint32_t location{};
   uint32_t binding{};
@@ -14,12 +21,28 @@ struct VertexAttributeDesc {
   uint32_t offset{};
 };
 
+/**
+ * @class VertexBindingDesc
+ * @brief Describes a vertex buffer binding.
+ *
+ * A binding specifies the memory layout and input rate for a vertex system.
+ */
 struct VertexBindingDesc {
   uint32_t binding{};
   uint32_t stride{};
   VkVertexInputRate input_rate{VK_VERTEX_INPUT_RATE_VERTEX};
 };
 
+/**
+ * @class VertexLayoutDesc
+ * @brief Describes the complete vertex input layout for a pipeline.
+ *
+ * The layout consists of one or more buffer bindings and the attributes sourced
+ * from those bindings.
+ *
+ * The descriptor references externally owned arrays and does not take
+ * ownership.
+ */
 struct VertexLayoutDesc {
   std::span<const VertexBindingDesc> bindings;
   std::span<const VertexAttributeDesc> attributes;

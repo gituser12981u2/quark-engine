@@ -12,7 +12,7 @@ target_link_libraries(
   quark_backend_vulkan
   PRIVATE quark::backend::vulkan::instance quark::backend::vulkan::device
           quark::backend::vulkan::frame quark::backend::vulkan::presentation
-          quark::backend::vulkan::sync
+          quark::backend::vulkan::pipeline quark::backend::vulkan::sync
   PUBLIC quark::headers::vk)
 
 target_include_directories(quark_backend_vulkan

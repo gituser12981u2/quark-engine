@@ -1,20 +1,52 @@
-#include "quark/vk/pipeline/graphics_pipeline.hpp"
-#include "quark/utils/diagnostic.hpp"
-#include "quark/utils/error_types.hpp"
-#include "quark/utils/result.hpp"
-#include "quark/vk/diagnostic_prelude.hpp"
-#include "quark/vk/pipeline/graphics_pipeline_desc.hpp"
-#include "quark/vk/pipeline/shader_stage_desc.hpp"
-#include "quark/vk/pipeline/vertex_layout.hpp"
-#include "quark/vk/vk_error.hpp"
-
+#include <array>
 #include <cstdint>
+#include <quark/platform/shader/details/shader_registry.hpp>
+#include <quark/utils/diagnostic.hpp>
+#include <quark/utils/error_types.hpp>
+#include <quark/utils/result.hpp>
+#include <quark/vk/diagnostic_prelude.hpp>
+#include <quark/vk/pipeline/graphics_pipeline.hpp>
+#include <quark/vk/pipeline/graphics_pipeline_desc.hpp>
+#include <quark/vk/pipeline/pipeline_limits.hpp>
+#include <quark/vk/pipeline/shader_stage_desc.hpp>
+#include <quark/vk/pipeline/vertex_layout.hpp>
+#include <quark/vk/vk_error.hpp>
+#include <span>
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
 namespace quark::vk {
 
 namespace {
+
+// TODO: replace with inplace_vector and upgrade to c++26
+struct PipelineScratch {
+  std::array<VkPipelineShaderStageCreateInfo,
+             pipeline_limits::kMaxGraphicsShaderStages>
+      stages{};
+
+  std::array<VkShaderModule, pipeline_limits::kMaxGraphicsShaderStages>
+      shader_modules{};
+
+  std::array<VkVertexInputBindingDescription,
+             pipeline_limits::kMaxVertexBindings>
+      bindings{};
+
+  std::array<VkVertexInputAttributeDescription,
+             pipeline_limits::kMaxVertexAttributes>
+      attributes{};
+
+  std::array<VkPipelineColorBlendAttachmentState,
+             pipeline_limits::kMaxColorAttachments>
+      color_blend_attachments{};
+
+  std::array<VkFormat, pipeline_limits::kMaxColorAttachments> color_formats{};
+
+  uint32_t stage_count{};
+  uint32_t binding_count{};
+  uint32_t attribute_count{};
+  uint32_t color_attachments_count{};
+};
 
 VkVertexInputBindingDescription to_vk_binding(const VertexBindingDesc &desc) {
   VkVertexInputBindingDescription out{};
@@ -48,14 +80,128 @@ make_blend_attachment(const ColorAttachmentDesc &desc) {
   return out;
 }
 
-} // namespace
-
-util::Status GraphicsPipeline::create(const CreateInfo &ci) {
+util::Status validate_desc(const GraphicsPipeline::CreateInfo &ci) {
   QUARK_ENSURE(
       ci.device != VK_NULL_HANDLE,
       QUARK_ERR(util::Errc::InvalidArg, "graphics pipeline device is null"));
-  QUARK_ENSURE(ci.desc != nullptr, QUARK_ERR(util::Errc::InvalidArg,
-                                             "graphics pipeline desc is null"));
+
+  const GraphicsPipelineDesc &desc = *ci.desc;
+
+  QUARK_ENSURE(!desc.color_attachments.empty(),
+               QUARK_ERR(util::Errc::InvalidArg,
+                         "graphics pipeline has no color attachments"));
+
+  QUARK_ENSURE(desc.stages.size() <= pipeline_limits::kMaxGraphicsShaderStages,
+               QUARK_ERR(util::Errc::InvalidArg,
+                         "graphics pipeline has too many shader stages"));
+
+  QUARK_ENSURE(ci.shaders != nullptr,
+               QUARK_ERR(util::Errc::InvalidArg,
+                         "graphics pipeline shader registry is null"));
+
+  QUARK_ENSURE(desc.vertex_layout.bindings.size() <=
+                   pipeline_limits::kMaxVertexBindings,
+               QUARK_ERR(util::Errc::InvalidArg,
+                         "graphics pipeline has too many vertex bindings"));
+
+  QUARK_ENSURE(desc.vertex_layout.attributes.size() <=
+                   pipeline_limits::kMaxVertexAttributes,
+               QUARK_ERR(util::Errc::InvalidArg,
+                         "graphics pipeline has too many vertex attributes"));
+
+  QUARK_ENSURE(desc.color_attachments.size() <=
+                   pipeline_limits::kMaxColorAttachments,
+               QUARK_ERR(util::Errc::InvalidArg,
+                         "graphics pipeline has too many color attachments"));
+
+  QUARK_ENSURE(desc.dynamic_states.size() <= pipeline_limits::kMaxDynamicStates,
+               QUARK_ERR(util::Errc::InvalidArg,
+                         "graphics pipeline has too many dynamic states"));
+
+  if (desc.backend == PipelineRenderBackend::RenderPass) {
+    QUARK_ENSURE(
+        desc.render_pass != VK_NULL_HANDLE,
+        QUARK_ERR(util::Errc::InvalidArg,
+                  "render-pass graphics pipeline has null render pass"));
+  }
+
+  QUARK_OK();
+}
+
+util::Status build_scratch(VkDevice device, const GraphicsPipelineDesc &desc,
+                           const ShaderRegistry &shaders,
+                           PipelineScratch &scratch) {
+  for (const ShaderStageDesc &stage_desc : desc.stages) {
+    QUARK_ENSURE(shaders.alive(stage_desc.shader),
+                 QUARK_ERR(util::Errc::InvalidArg,
+                           "graphics pipeline shader module is null"));
+    QUARK_ENSURE(stage_desc.entry_point != nullptr,
+                 QUARK_ERR(util::Errc::InvalidArg,
+                           "graphics pipeline shader entry point is null"));
+
+    const std::span<const uint32_t> code = shaders.code(stage_desc.shader);
+
+    VkShaderModuleCreateInfo module_info{};
+    module_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    module_info.codeSize = code.size_bytes();
+    module_info.pCode = code.data();
+
+    VkShaderModule module{VK_NULL_HANDLE};
+    QUARK_VK_TRY(vkCreateShaderModule(device, &module_info,
+                                      /*pAllocator=*/nullptr, &module));
+
+    scratch.shader_modules[scratch.stage_count] = module;
+
+    VkPipelineShaderStageCreateInfo stage{};
+    stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    stage.stage = stage_desc.stage;
+    stage.module = module;
+    stage.pName = stage_desc.entry_point;
+
+    scratch.stages[scratch.stage_count++] = stage;
+  }
+
+  for (const VertexBindingDesc &binding : desc.vertex_layout.bindings) {
+    scratch.bindings[scratch.binding_count++] = to_vk_binding(binding);
+  }
+
+  for (const VertexAttributeDesc &attribute : desc.vertex_layout.attributes) {
+    scratch.attributes[scratch.attribute_count++] = to_vk_attribute(attribute);
+  }
+
+  for (const ColorAttachmentDesc &attachment : desc.color_attachments) {
+    scratch.color_blend_attachments[scratch.color_attachments_count] =
+        make_blend_attachment(attachment);
+    scratch.color_formats[scratch.color_attachments_count] = attachment.format;
+    ++scratch.color_attachments_count;
+  }
+
+  QUARK_OK();
+}
+
+void destroy_scratch_shader_modules(VkDevice device,
+                                    PipelineScratch &scratch) noexcept {
+  if (device == VK_NULL_HANDLE) {
+    return;
+  }
+
+  for (VkShaderModule &module : scratch.shader_modules) {
+    if (module == VK_NULL_HANDLE) {
+      continue;
+    }
+
+    vkDestroyShaderModule(device, module, nullptr);
+    module = VK_NULL_HANDLE;
+  }
+}
+
+} // namespace
+
+util::Status GraphicsPipeline::create(const CreateInfo &ci) {
+  QUARK_TRY_STATUS(validate_desc(ci));
+
+  destroy();
+  device_ = ci.device;
 
   const GraphicsPipelineDesc &desc = *ci.desc;
 
@@ -66,49 +212,16 @@ util::Status GraphicsPipeline::create(const CreateInfo &ci) {
                QUARK_ERR(util::Errc::InvalidArg,
                          "graphics pipeline has no color attachments"));
 
-  destroy();
-  device_ = ci.device;
-
-  std::vector<VkPipelineShaderStageCreateInfo> stages;
-  stages.reserve(desc.stages.size());
-
-  for (const ShaderStageDesc &stage_desc : desc.stages) {
-    QUARK_ENSURE(stage_desc.module != VK_NULL_HANDLE,
-                 QUARK_ERR(util::Errc::InvalidArg,
-                           "graphics pipeline shader module is null"));
-    QUARK_ENSURE(stage_desc.entry_point != nullptr,
-                 QUARK_ERR(util::Errc::InvalidArg,
-                           "graphics pipeline shader entry point is null"));
-
-    VkPipelineShaderStageCreateInfo stage{};
-    stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    stage.stage = stage_desc.stage;
-    stage.module = stage_desc.module;
-    stage.pName = stage_desc.entry_point;
-    stages.push_back(stage);
-  }
-
-  std::vector<VkVertexInputBindingDescription> bindings{};
-  bindings.reserve(desc.vertex_layout.bindings.size());
-  for (const VertexBindingDesc &binding : desc.vertex_layout.bindings) {
-    bindings.push_back(to_vk_binding(binding));
-  }
-
-  std::vector<VkVertexInputAttributeDescription> attributes;
-  attributes.reserve(desc.vertex_layout.attributes.size());
-  for (const VertexAttributeDesc &attribute : desc.vertex_layout.attributes) {
-    attributes.push_back(to_vk_attribute(attribute));
-  }
+  PipelineScratch scratch{};
+  QUARK_TRY_STATUS(build_scratch(ci.device, desc, *ci.shaders, scratch));
 
   VkPipelineVertexInputStateCreateInfo vertex_input{};
   vertex_input.sType =
       VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-  vertex_input.vertexBindingDescriptionCount =
-      static_cast<uint32_t>(bindings.size());
-  vertex_input.pVertexBindingDescriptions = bindings.data();
-  vertex_input.vertexAttributeDescriptionCount =
-      static_cast<uint32_t>(attributes.size());
-  vertex_input.pVertexAttributeDescriptions = attributes.data();
+  vertex_input.vertexBindingDescriptionCount = scratch.binding_count;
+  vertex_input.pVertexBindingDescriptions = scratch.bindings.data();
+  vertex_input.vertexAttributeDescriptionCount = scratch.attribute_count;
+  vertex_input.pVertexAttributeDescriptions = scratch.attributes.data();
 
   VkPipelineInputAssemblyStateCreateInfo input_assembly{};
   input_assembly.sType =
@@ -126,6 +239,7 @@ util::Status GraphicsPipeline::create(const CreateInfo &ci) {
   viewport.maxDepth = 1.0F;
 
   VkRect2D scissor{};
+  scissor = {};
   scissor.offset = {.x = 0, .y = 0};
   scissor.extent = ci.extent;
 
@@ -154,18 +268,11 @@ util::Status GraphicsPipeline::create(const CreateInfo &ci) {
 
   // TODO: add depth stencil
 
-  std::vector<VkPipelineColorBlendAttachmentState> color_blend_attachments;
-  color_blend_attachments.reserve(desc.color_attachments.size());
-  for (const ColorAttachmentDesc &attachment : desc.color_attachments) {
-    color_blend_attachments.push_back(make_blend_attachment(attachment));
-  }
-
   VkPipelineColorBlendStateCreateInfo color_blend{};
   color_blend.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
   color_blend.logicOpEnable = VK_FALSE;
-  color_blend.attachmentCount =
-      static_cast<uint32_t>(color_blend_attachments.size());
-  color_blend.pAttachments = color_blend_attachments.data();
+  color_blend.attachmentCount = scratch.color_attachments_count;
+  color_blend.pAttachments = scratch.color_blend_attachments.data();
 
   VkPipelineDynamicStateCreateInfo dynamic_state{};
   dynamic_state.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
@@ -199,19 +306,20 @@ util::Status GraphicsPipeline::create(const CreateInfo &ci) {
 
   VkGraphicsPipelineCreateInfo pipeline_info{};
   pipeline_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-  pipeline_info.stageCount = static_cast<uint32_t>(stages.size());
-  pipeline_info.pStages = stages.data();
+  pipeline_info.stageCount = scratch.stage_count;
+  pipeline_info.pStages = scratch.stages.data();
   pipeline_info.pVertexInputState = &vertex_input;
   pipeline_info.pInputAssemblyState = &input_assembly;
   pipeline_info.pViewportState = &viewport_state;
   pipeline_info.pRasterizationState = &rasterizer;
   pipeline_info.pMultisampleState = &multisample;
   pipeline_info.pDepthStencilState = nullptr;
+  // desc.depth_attachment.format == VK_FORMAT_UNDEFINED ? nullptr
+  //                                                     : &depth_stencil;
   pipeline_info.pColorBlendState = &color_blend;
   pipeline_info.pDynamicState =
       desc.dynamic_states.empty() ? nullptr : &dynamic_state;
   pipeline_info.layout = layout_;
-  // pipeline_info.renderPass = VK_NULL_HANDLE; // dynamic rendering
   pipeline_info.subpass = desc.subpass;
   pipeline_info.basePipelineHandle = VK_NULL_HANDLE;
   pipeline_info.basePipelineIndex = -1;
@@ -233,9 +341,12 @@ util::Status GraphicsPipeline::create(const CreateInfo &ci) {
       device_, VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &pipeline_);
 
   if (result != VK_SUCCESS) {
+    destroy_scratch_shader_modules(device_, scratch);
     destroy();
     QUARK_FAIL(::quark::vk::vk_error(result, "vkCreateGraphicsPipelines"));
   }
+
+  destroy_scratch_shader_modules(device_, scratch);
 
   QUARK_OK();
 }

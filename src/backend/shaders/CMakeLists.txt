@@ -1,0 +1,28 @@
+set(SHADER_SRC_DIR ${CMAKE_CURRENT_LIST_DIR})
+set(SHADER_BIN_DIR ${CMAKE_CURRENT_LIST_DIR}/spv)
+
+file(MAKE_DIRECTORY ${SHADER_BIN_DIR})
+
+set(GLSLANG_VALIDATOR_EXECUTABLE "glslangValidator")
+
+set(TRIANGLE_VERT ${SHADER_SRC_DIR}/triangle.vert)
+set(TRIANGLE_FRAG ${SHADER_SRC_DIR}/triangle.frag)
+set(TRIANGLE_VERT_SPV ${SHADER_BIN_DIR}/triangle.vert.spv)
+set(TRIANGLE_FRAG_SPV ${SHADER_BIN_DIR}/triangle.frag.spv)
+
+add_custom_command(
+  OUTPUT ${TRIANGLE_VERT_SPV}
+  COMMAND ${GLSLANG_VALIDATOR_EXECUTABLE} -V ${TRIANGLE_VERT} -o
+          ${TRIANGLE_VERT_SPV}
+  DEPENDS ${TRIANGLE_VERT}
+  COMMENT "Compiling ${TRIANGLE_VERT} to SPIR-V")
+
+add_custom_command(
+  OUTPUT ${TRIANGLE_FRAG_SPV}
+  COMMAND ${GLSLANG_VALIDATOR_EXECUTABLE} -V ${TRIANGLE_FRAG} -o
+          ${TRIANGLE_FRAG_SPV}
+  DEPENDS ${TRIANGLE_FRAG}
+  COMMENT "Compiling ${TRIANGLE_FRAG} to SPIR-V")
+
+add_custom_target(basic_triangle_shaders ALL DEPENDS ${TRIANGLE_VERT_SPV}
+                                                     ${TRIANGLE_FRAG_SPV})

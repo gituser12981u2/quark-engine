@@ -8,6 +8,7 @@
 namespace quark::vk {
 
 struct GraphicsPipelineDesc;
+class ShaderRegistry;
 
 class GraphicsPipeline final {
 public:
@@ -15,6 +16,7 @@ public:
     VkDevice device{VK_NULL_HANDLE};
     VkExtent2D extent{};
     const GraphicsPipelineDesc *desc{nullptr};
+    const ShaderRegistry *shaders{nullptr};
   };
 
   GraphicsPipeline() = default;
@@ -23,6 +25,9 @@ public:
   QUARK_MOVE_ONLY(GraphicsPipeline);
 
   [[nodiscard]] util::Status create(const CreateInfo &ci);
+
+  // TODO: move destruction through GraphicsPipelineRegistry retirement once
+  // pipelines can be destroyed while GPU work is in flight.
   void destroy() noexcept;
 
   [[nodiscard]] bool valid() const noexcept {
