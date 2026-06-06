@@ -19,7 +19,6 @@
 #include <quark/platform/shader/shader_handle.hpp>
 #include <quark/vk/diagnostic_prelude.hpp>
 #include <quark/vk/instance/instance_bundle.hpp>
-#include <quark/vk/pipeline/graphics_pipeline.hpp>
 #include <quark/vk/pipeline/graphics_pipeline_desc.hpp>
 #include <quark/vk/pipeline/shader_stage_desc.hpp>
 #include <quark/vk/pipeline/vertex_layout.hpp>
@@ -249,19 +248,20 @@ util::Status VulkanContext::create_triangle_pipeline() {
       .render_pass = render_pass_,
   };
 
-  GraphicsPipeline::CreateInfo ci{
-      .device = device_.vk_device(),
+  GraphicsPipelineBundle::CreateInfo ci{
+      .device = device_.view(),
+      .shaders = &shader_registry_,
+      .retire_queue = &retirement_queue_,
       .extent = presenter_.swapchain().extent(),
       .desc = &desc,
-      .shaders = &shader_registry_,
   };
 
-  QUARK_TRY_STATUS(graphics_pipeline_.create(ci));
+  QUARK_TRY_STATUS(triangle_pipeline_.create(ci));
   QUARK_OK();
 }
 
 void VulkanContext::destroy_triangle_pipeline() {
-  graphics_pipeline_.destroy();
+  triangle_pipeline_.destroy();
 }
 
 // TODO: make an abstracted buffer with VMA. VMA should probably be part of the
@@ -684,7 +684,7 @@ util::Status VulkanContext::record_command_buffer(uint32_t image_index) {
     cmd_begin_rendering_(cb, &rendering_info);
 
     vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                      graphics_pipeline_.pipeline());
+                      triangle_pipeline_.pipeline());
     VkViewport viewport{};
 
     viewport.x = 0.0F;
@@ -734,7 +734,7 @@ util::Status VulkanContext::record_command_buffer(uint32_t image_index) {
     vkCmdBeginRenderPass(cb, &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
     // --- Triangle rendering (fallback path) ---
     vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                      graphics_pipeline_.pipeline());
+                      triangle_pipeline_.pipeline());
     VkViewport viewport{};
     viewport.x = 0.0F;
     viewport.y = 0.0F;

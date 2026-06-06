@@ -5,7 +5,7 @@
 #include <quark/utils/error_types.hpp>
 #include <quark/utils/result.hpp>
 #include <quark/vk/diagnostic_prelude.hpp>
-#include <quark/vk/pipeline/graphics_pipeline.hpp>
+#include <quark/vk/pipeline/details/graphics_pipeline.hpp>
 #include <quark/vk/pipeline/graphics_pipeline_desc.hpp>
 #include <quark/vk/pipeline/pipeline_limits.hpp>
 #include <quark/vk/pipeline/shader_stage_desc.hpp>
@@ -15,7 +15,7 @@
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
-namespace quark::vk {
+namespace quark::vk::details {
 
 namespace {
 
@@ -82,7 +82,7 @@ make_blend_attachment(const ColorAttachmentDesc &desc) {
 
 util::Status validate_desc(const GraphicsPipeline::CreateInfo &ci) {
   QUARK_ENSURE(
-      ci.device != VK_NULL_HANDLE,
+      ci.device.device != VK_NULL_HANDLE,
       QUARK_ERR(util::Errc::InvalidArg, "graphics pipeline device is null"));
 
   const GraphicsPipelineDesc &desc = *ci.desc;
@@ -201,7 +201,7 @@ util::Status GraphicsPipeline::create(const CreateInfo &ci) {
   QUARK_TRY_STATUS(validate_desc(ci));
 
   destroy();
-  device_ = ci.device;
+  auto *device = ci.device.device;
 
   const GraphicsPipelineDesc &desc = *ci.desc;
 
@@ -213,7 +213,7 @@ util::Status GraphicsPipeline::create(const CreateInfo &ci) {
                          "graphics pipeline has no color attachments"));
 
   PipelineScratch scratch{};
-  QUARK_TRY_STATUS(build_scratch(ci.device, desc, *ci.shaders, scratch));
+  QUARK_TRY_STATUS(build_scratch(device, desc, *ci.shaders, scratch));
 
   VkPipelineVertexInputStateCreateInfo vertex_input{};
   vertex_input.sType =
@@ -280,15 +280,14 @@ util::Status GraphicsPipeline::create(const CreateInfo &ci) {
       static_cast<uint32_t>(desc.dynamic_states.size());
   dynamic_state.pDynamicStates = desc.dynamic_states.data();
 
-  VkPipelineLayoutCreateInfo layout_info{};
-  layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-  layout_info.setLayoutCount = 0;
-  layout_info.pSetLayouts = nullptr;
-  layout_info.pushConstantRangeCount = 0;
-  layout_info.pPushConstantRanges = nullptr;
-
-  QUARK_VK_TRY(
-      vkCreatePipelineLayout(device_, &layout_info, nullptr, &layout_));
+  QUARK_TRY_STATUS(layout_.create({
+      .device = ci.device,
+      .set_layout_count = 0,
+      .set_layouts = nullptr,
+      .push_constant_range_count = 0,
+      .push_constant_ranges = nullptr,
+      .allocator = ci.allocator,
+  }));
 
   std::vector<VkFormat> color_formats;
   color_formats.reserve(desc.color_attachments.size());
@@ -319,7 +318,7 @@ util::Status GraphicsPipeline::create(const CreateInfo &ci) {
   pipeline_info.pColorBlendState = &color_blend;
   pipeline_info.pDynamicState =
       desc.dynamic_states.empty() ? nullptr : &dynamic_state;
-  pipeline_info.layout = layout_;
+  pipeline_info.layout = layout_.handle();
   pipeline_info.subpass = desc.subpass;
   pipeline_info.basePipelineHandle = VK_NULL_HANDLE;
   pipeline_info.basePipelineIndex = -1;
@@ -337,38 +336,21 @@ util::Status GraphicsPipeline::create(const CreateInfo &ci) {
     pipeline_info.renderPass = desc.render_pass;
   }
 
-  const VkResult result = vkCreateGraphicsPipelines(
-      device_, VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &pipeline_);
+  QUARK_TRY_STATUS(pipeline_.create({
+      .device = ci.device,
+      .cache = VK_NULL_HANDLE,
+      .graphics_info = &pipeline_info,
+      .allocator = ci.allocator,
+  }));
 
-  if (result != VK_SUCCESS) {
-    destroy_scratch_shader_modules(device_, scratch);
-    destroy();
-    QUARK_FAIL(::quark::vk::vk_error(result, "vkCreateGraphicsPipelines"));
-  }
-
-  destroy_scratch_shader_modules(device_, scratch);
+  destroy_scratch_shader_modules(device, scratch);
 
   QUARK_OK();
 }
 
 void GraphicsPipeline::destroy() noexcept {
-  if (device_ == VK_NULL_HANDLE) {
-    pipeline_ = VK_NULL_HANDLE;
-    layout_ = VK_NULL_HANDLE;
-    return;
-  }
-
-  if (pipeline_ != VK_NULL_HANDLE) {
-    vkDestroyPipeline(device_, pipeline_, nullptr);
-    pipeline_ = VK_NULL_HANDLE;
-  }
-
-  if (layout_ != VK_NULL_HANDLE) {
-    vkDestroyPipelineLayout(device_, layout_, nullptr);
-    layout_ = VK_NULL_HANDLE;
-  }
-
-  device_ = VK_NULL_HANDLE;
+  pipeline_.destroy();
+  layout_.destroy();
 }
 
-} // namespace quark::vk
+} // namespace quark::vk::details

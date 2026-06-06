@@ -1,7 +1,7 @@
 #pragma once
 
 #include "quark/platform/shader/details/shader_registry.hpp"
-#include "quark/vk/pipeline/graphics_pipeline.hpp"
+#include "quark/vk/pipeline/graphics_pipeline_bundle.hpp"
 
 #include <array>
 #include <cstdint>
@@ -108,7 +108,7 @@ private:
   uint32_t current_frame_{};
 #endif
 
-  GraphicsPipeline graphics_pipeline_;
+  GraphicsPipelineBundle triangle_pipeline_;
   ShaderRegistry shader_registry_;
 
   // Triangle rendering resources

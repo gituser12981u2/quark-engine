@@ -1,0 +1,104 @@
+#include "quark/vk/pipeline/details/graphics_pipeline_registry.hpp"
+#include "quark/utils/diagnostic.hpp"
+#include "quark/utils/error_types.hpp"
+#include "quark/utils/result.hpp"
+#include "quark/vk/device/device_view.hpp"
+#include "quark/vk/pipeline/details/graphics_pipeline.hpp"
+#include "quark/vk/pipeline/details/graphics_pipeline_handle.hpp"
+#include <cstdint>
+#include <utility>
+#include <vulkan/vulkan_core.h>
+
+namespace quark::vk::details {
+
+void GraphicsPipelineRegistryPolicy::destroy_slot_immediate(
+    GraphicsPipelineSlot &slot) noexcept {
+  slot.pipeline.destroy();
+}
+
+void GraphicsPipelineRegistryPolicy::move_slot_to_retired_payload(
+    GraphicsPipelineSlot &slot, RetiredGraphicsPipeline &payload) noexcept {
+  payload.pipeline = std::move(slot.pipeline);
+}
+
+void GraphicsPipelineRegistryPolicy::destroy_retired_payload(
+    void *ctx) noexcept {
+  auto *payload = static_cast<RetiredGraphicsPipeline *>(ctx);
+  if (payload == nullptr) {
+    return;
+  }
+
+  payload->pipeline.destroy();
+}
+
+void GraphicsPipelineRegistryPolicy::cleanup_retired_payload(
+    void *ctx) noexcept {
+  delete static_cast<RetiredGraphicsPipeline *>(ctx);
+}
+
+[[nodiscard]] util::Status
+GraphicsPipelineRegistry::create(const CreateInfo &ci) {
+  QUARK_TRY_STATUS(validate(ci.device));
+
+  QUARK_ENSURE(ci.shaders != nullptr,
+               QUARK_ERR(util::Errc::InvalidArg,
+                         "graphics pipeline registry shader registry is null"));
+
+  destroy();
+
+  device_ = ci.device;
+  shaders_ = ci.shaders;
+  allocator_ = ci.allocator;
+  retire_queue_ = ci.retire_queue;
+
+  QUARK_OK();
+}
+
+void GraphicsPipelineRegistry::destroy() noexcept {
+  clear();
+
+  device_ = {};
+  shaders_ = nullptr;
+  allocator_ = nullptr;
+}
+
+void GraphicsPipelineRegistry::clear() noexcept { clear_slots_immediate_(); }
+
+util::Result<GraphicsPipelineHandle>
+GraphicsPipelineRegistry::create_pipeline(const PipelineCreateInfo &ci) {
+  QUARK_ENSURE(ci.desc != nullptr, QUARK_ERR(util::Errc::InvalidArg,
+                                             "graphics pipeline desc is null"));
+
+  auto pending = begin_create_();
+
+  GraphicsPipeline::CreateInfo pipeline_ci{
+      .device = device_,
+      .extent = ci.extent,
+      .desc = ci.desc,
+      .shaders = shaders_,
+      .allocator = allocator_,
+  };
+
+  QUARK_TRY_STATUS(pending.slot().pipeline.create(pipeline_ci));
+
+  return pending.commit();
+}
+
+void GraphicsPipelineRegistry::destroy(GraphicsPipelineHandle handle,
+                                       uint64_t retire_at) noexcept {
+  retire_live_slot_(handle, retire_at);
+}
+
+VkPipeline GraphicsPipelineRegistry::pipeline(
+    GraphicsPipelineHandle handle) const noexcept {
+  const GraphicsPipelineSlot *slot = slot_if_live_(handle);
+  return slot == nullptr ? VK_NULL_HANDLE : slot->pipeline.pipeline();
+}
+
+VkPipelineLayout
+GraphicsPipelineRegistry::layout(GraphicsPipelineHandle handle) const noexcept {
+  const GraphicsPipelineSlot *slot = slot_if_live_(handle);
+  return slot == nullptr ? VK_NULL_HANDLE : slot->pipeline.layout();
+}
+
+} // namespace quark::vk::details
