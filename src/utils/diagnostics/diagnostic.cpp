@@ -19,6 +19,10 @@ void set_diagnostic_sinks(std::span<const DiagnosticSink> sinks) noexcept {
 #ifdef _MSC_VER
 #pragma warning(push)
 #pragma warning(disable : 4996)
+// Absolute PAIN to fix.
+#elif defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
 
   std::atomic_store_explicit( // NOLINT(deprecated-declarations)
@@ -32,6 +36,8 @@ void set_diagnostic_sinks(std::span<const DiagnosticSink> sinks) noexcept {
 
 #ifdef _MSC_VER
 #pragma warning(pop)
+#elif defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
 #endif
 }
 
@@ -39,6 +45,9 @@ std::shared_ptr<const SinkList> diagnostic_sinks_snapshot() noexcept {
 #ifdef _MSC_VER
 #pragma warning(push)
 #pragma warning(disable : 4996)
+#elif defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
 
   return std::atomic_load_explicit( // NOLINT(deprecated-declarations)
@@ -46,6 +55,8 @@ std::shared_ptr<const SinkList> diagnostic_sinks_snapshot() noexcept {
 
 #ifdef _MSC_VER
 #pragma warning(pop)
+#elif defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
 #endif
 }
 

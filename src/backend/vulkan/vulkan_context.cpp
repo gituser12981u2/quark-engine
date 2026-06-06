@@ -194,6 +194,9 @@ namespace quark::vk {
 
 // --- Triangle setup/cleanup --- Delete this later once we're happy
 util::Status VulkanContext::create_triangle_pipeline() {
+#if QUARK_HEADLESS
+  QUARK_OK();
+#else
   ShaderHandle vert_shader{};
   ShaderHandle frag_shader{};
 
@@ -258,6 +261,7 @@ util::Status VulkanContext::create_triangle_pipeline() {
 
   QUARK_TRY_STATUS(triangle_pipeline_.create(ci));
   QUARK_OK();
+#endif
 }
 
 void VulkanContext::destroy_triangle_pipeline() {
@@ -369,8 +373,10 @@ util::Status VulkanContext::init() {
   QUARK_TRY_STATUS(create_framebuffers());
 #endif
 
+#if !QUARK_HEADLESS
   // Triangle setup
   QUARK_TRY_STATUS(create_triangle_pipeline());
+#endif
   QUARK_TRY_STATUS(create_triangle_vertex_buffer());
 
   QUARK_OK();
@@ -383,7 +389,9 @@ VulkanContext::~VulkanContext() {
   }
 
   destroy_triangle_vertex_buffer();
+#if !QUARK_HEADLESS
   destroy_triangle_pipeline();
+#endif
 
   frame_.destroy();
   retirement_queue_.destroy();
