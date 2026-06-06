@@ -25,8 +25,8 @@ else
 endif
 
 ifeq ($(HEADLESS),ON)
-	HEADLESS_SUFFIX := -headless 
-else ifeq($(HEADLESS),OFF)
+	HEADLESS_SUFFIX := -headless
+else ifeq ($(HEADLESS),OFF)
 	HEADLESS_SUFFIX :=
 else
 	$(error Unknown HEADLESS '$(HEADLESS)'. Use ON or OFF)
@@ -157,7 +157,7 @@ vcpkg-install: deps
 configure:
 	cmake --preset $(CMAKE_CONFIGURE_PRESET) \
 		-DQUARK_HEADLESS=$(HEADLESS) \
-		-DVCPKG_MANIFEST_FEATURES=window
+		-DVCPKG_MANIFEST_FEATURES=window \
 		-B $(BUILD_DIR)
 	./scripts/sync_compile_commands.sh $(BUILD_DIR)
 

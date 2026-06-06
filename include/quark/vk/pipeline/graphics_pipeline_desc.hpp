@@ -28,7 +28,7 @@ struct DepthAttachmentDesc {
   VkFormat format{VK_FORMAT_UNDEFINED};
   bool test_enable{false};
   bool write_enable{false};
-  VkCompareOp VkCompareOp{VK_COMPARE_OP_LESS};
+  VkCompareOp compare_op{VK_COMPARE_OP_LESS};
 };
 
 struct RasterStateDesc {

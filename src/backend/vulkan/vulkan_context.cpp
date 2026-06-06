@@ -514,7 +514,7 @@ util::Status VulkanContext::create_instance() {
 #if !QUARK_HEADLESS
 
 void VulkanContext::create_window() {
-  auto window = std::make_unique<platform::GlfwWindow>();
+  window_ = std::make_unique<platform::GlfwWindow>();
 
   platform::IWindow::CreateInfo ci{};
   ci.width = kWindowWidth;
@@ -522,8 +522,7 @@ void VulkanContext::create_window() {
   ci.title = kWindowTitle.data();
   ci.resizable = true;
 
-  window->create(ci);
-  window_ = std::move(window);
+  window_->create(ci);
 }
 
 util::Status VulkanContext::create_presenter() {
