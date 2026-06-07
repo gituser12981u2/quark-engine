@@ -28,7 +28,8 @@ target_link_libraries(quark_build_settings INTERFACE quark::features)
 add_library(quark_headers_vk INTERFACE)
 add_library(quark::headers::vk ALIAS quark_headers_vk)
 target_link_libraries(quark_headers_vk INTERFACE quark::headers::core
-                                                 Vulkan::Vulkan)
+                                                 Vulkan::Vulkan
+                                                 GPUOpen::VulkanMemoryAllocator)
 
 add_subdirectory(backend)
 add_subdirectory(engine)
