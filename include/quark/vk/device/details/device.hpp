@@ -5,6 +5,7 @@
 #include <quark/utils/result.hpp>
 #include <quark/vk/device/details/device_capabilities.hpp>
 #include <vector>
+#include <vk_mem_alloc.h>
 #include <vulkan/vulkan_core.h>
 
 namespace quark::vk::details {
@@ -64,6 +65,10 @@ public:
     return capabilities_;
   }
 
+  [[nodiscard]] VmaAllocator vma_allocator() const noexcept {
+    return allocator_;
+  }
+
 private:
   struct DeviceSelection {
     VkPhysicalDevice physical_device{VK_NULL_HANDLE};
@@ -101,6 +106,7 @@ private:
   uint32_t graphics_queue_family_index_ = 0;
   uint32_t present_queue_family_index_ = 0;
   const VkAllocationCallbacks *alloc_ = nullptr;
+  VmaAllocator allocator_ = nullptr;
   DeviceCapabilities capabilities_{};
 };
 

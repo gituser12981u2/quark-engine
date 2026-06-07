@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <array>
 #include <bit>
-#include <cstddef>
 #include <cstdint>
 #include <cstring>
 
@@ -192,161 +191,6 @@ void destroy_probe_surface(VkInstance instance,
 
 namespace quark::vk {
 
-// --- Triangle setup/cleanup --- Delete this later once we're happy
-util::Status VulkanContext::create_triangle_pipeline() {
-#if QUARK_HEADLESS
-  QUARK_OK();
-#else
-  ShaderHandle vert_shader{};
-  ShaderHandle frag_shader{};
-
-  QUARK_TRY_ASSIGN(vert_shader, shader_registry_.load_spv_file(
-                                    "src/backend/shaders/spv/triangle.vert.spv",
-                                    VK_SHADER_STAGE_VERTEX_BIT));
-
-  QUARK_TRY_ASSIGN(frag_shader, shader_registry_.load_spv_file(
-                                    "src/backend/shaders/spv/triangle.frag.spv",
-                                    VK_SHADER_STAGE_FRAGMENT_BIT));
-
-  const auto bindings = Position2Color3Vertex::bindings();
-  const auto attributes = Position2Color3Vertex::attributes();
-
-  const VertexLayoutDesc vertex_layout{
-      .bindings = bindings,
-      .attributes = attributes,
-  };
-
-  const std::array<ShaderStageDesc, 2> stages{
-      {ShaderStageDesc{
-           .shader = vert_shader,
-           .stage = VK_SHADER_STAGE_VERTEX_BIT,
-           .entry_point = "main",
-       },
-       ShaderStageDesc{
-           .shader = frag_shader,
-           .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-           .entry_point = "main",
-       }}};
-
-  const std::array<ColorAttachmentDesc, 1> color_attachments{
-      ColorAttachmentDesc{
-          .format = presenter_.swapchain().format(),
-      }};
-
-  const std::array<VkDynamicState, 2> dynamic_states{VK_DYNAMIC_STATE_VIEWPORT,
-                                                     VK_DYNAMIC_STATE_SCISSOR};
-
-  GraphicsPipelineDesc desc{
-      .stages = stages,
-      .vertex_layout = vertex_layout,
-      .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-      .primitive_restart_enable = false,
-      .raster = RasterStateDesc{.cull_mode = VK_CULL_MODE_NONE,
-                                .front_face = VK_FRONT_FACE_COUNTER_CLOCKWISE},
-      .color_attachments = color_attachments,
-      .dynamic_states = dynamic_states,
-      .backend = render_path_ == RenderPath::Vulkan13DynamicRendering
-                     ? PipelineRenderBackend::DynamicRendering
-                     : PipelineRenderBackend::RenderPass,
-      .render_pass = render_pass_,
-  };
-
-  GraphicsPipelineBundle::CreateInfo ci{
-      .device = device_.view(),
-      .shaders = &shader_registry_,
-      .retire_queue = &retirement_queue_,
-      .extent = presenter_.swapchain().extent(),
-      .desc = &desc,
-  };
-
-  QUARK_TRY_STATUS(triangle_pipeline_.create(ci));
-  QUARK_OK();
-#endif
-}
-
-void VulkanContext::destroy_triangle_pipeline() {
-  triangle_pipeline_.destroy();
-}
-
-// TODO: make an abstracted buffer with VMA. VMA should probably be part of the
-// device bundle
-util::Status VulkanContext::create_triangle_vertex_buffer() {
-  // Vertex data: 3 vertices, each with vec2 position and vec3 color
-  constexpr array<float, 15> triangle_vertices = {
-      //  x,     y,     r,   g,   b
-      0.0F,  -0.5F, 1.0F, 0.0F, 0.0F, // bottom center, red
-      0.5F,  0.5F,  0.0F, 1.0F, 0.0F, // top right, green
-      -0.5F, 0.5F,  0.0F, 0.0F, 1.0F  // top left, blue
-  };
-  triangle_vertex_count_ = 3;
-  constexpr VkDeviceSize buffer_size = sizeof(triangle_vertices);
-
-  VkBufferCreateInfo buffer_info{};
-  buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-  buffer_info.size = buffer_size;
-  buffer_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-  buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-  QUARK_VK_TRY(vkCreateBuffer(device_.vk_device(), &buffer_info, nullptr,
-                              &triangle_vertex_buffer_));
-
-  VkMemoryRequirements mem_reqs;
-  vkGetBufferMemoryRequirements(device_.vk_device(), triangle_vertex_buffer_,
-                                &mem_reqs);
-
-  VkMemoryAllocateInfo alloc_info{};
-  alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-  alloc_info.allocationSize = mem_reqs.size;
-
-  // Find host-visible memory type
-  VkPhysicalDeviceMemoryProperties mem_props;
-  vkGetPhysicalDeviceMemoryProperties(device_.vk_physical_device(), &mem_props);
-  uint32_t memory_type_index{UINT32_MAX};
-  for (uint32_t i{}; i < mem_props.memoryTypeCount; ++i) {
-    bool is_type = (mem_reqs.memoryTypeBits & (1 << i)) != 0;
-    bool is_visible = (mem_props.memoryTypes[i].propertyFlags &
-                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) != 0;
-    bool is_coherent = (mem_props.memoryTypes[i].propertyFlags &
-                        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) != 0;
-    if (is_type && is_visible && is_coherent) {
-      memory_type_index = i;
-      break;
-    }
-  }
-  if (memory_type_index == UINT32_MAX) {
-    return util::unexpected(
-        QUARK_ERR(util::Errc::ApiError,
-                  "No suitable memory type for triangle vertex buffer"));
-  }
-  alloc_info.memoryTypeIndex = memory_type_index;
-
-  QUARK_VK_TRY(vkAllocateMemory(device_.vk_device(), &alloc_info, nullptr,
-                                &triangle_vertex_memory_));
-  QUARK_VK_TRY(vkBindBufferMemory(device_.vk_device(), triangle_vertex_buffer_,
-                                  triangle_vertex_memory_, 0));
-
-  // Upload data
-  void *data = nullptr;
-  QUARK_VK_TRY(vkMapMemory(device_.vk_device(), triangle_vertex_memory_, 0,
-                           buffer_size, 0, &data));
-  std::memcpy(data, triangle_vertices.data(), static_cast<size_t>(buffer_size));
-  vkUnmapMemory(device_.vk_device(), triangle_vertex_memory_);
-
-  QUARK_OK();
-}
-
-void VulkanContext::destroy_triangle_vertex_buffer() {
-  VkDevice device = device_.vk_device();
-  if (triangle_vertex_buffer_ != VK_NULL_HANDLE) {
-    vkDestroyBuffer(device, triangle_vertex_buffer_, nullptr);
-    triangle_vertex_buffer_ = VK_NULL_HANDLE;
-  }
-  if (triangle_vertex_memory_ != VK_NULL_HANDLE) {
-    vkFreeMemory(device, triangle_vertex_memory_, nullptr);
-    triangle_vertex_memory_ = VK_NULL_HANDLE;
-  }
-}
-
 util::Status VulkanContext::init() {
 #if !QUARK_HEADLESS
   create_window();
@@ -357,8 +201,6 @@ util::Status VulkanContext::init() {
   QUARK_TRY_STATUS(create_device());
   QUARK_TRY_STATUS(create_gpu_timeline());
   QUARK_TRY_STATUS(create_retirement_queue());
-
-  QUARK_TRY_STATUS(shader_registry_.create({.device = device_.vk_device()}));
 
 #if !QUARK_HEADLESS
   QUARK_TRY_STATUS(create_presenter());
@@ -371,13 +213,19 @@ util::Status VulkanContext::init() {
 
   QUARK_TRY_STATUS(create_render_pass());
   QUARK_TRY_STATUS(create_framebuffers());
-#endif
 
-#if !QUARK_HEADLESS
-  // Triangle setup
-  QUARK_TRY_STATUS(create_triangle_pipeline());
+  QUARK_TRY_STATUS(renderer_.create({
+      .device = device_.view(),
+      .allocator = device_.vma_allocator(),
+      .retire_queue = &retirement_queue_,
+      .extent = presenter_.swapchain().extent(),
+      .color_format = presenter_.swapchain().format(),
+      .backend = render_path_ == RenderPath::Vulkan13DynamicRendering
+                     ? PipelineRenderBackend::DynamicRendering
+                     : PipelineRenderBackend::RenderPass,
+      .render_pass = render_pass_,
+  }));
 #endif
-  QUARK_TRY_STATUS(create_triangle_vertex_buffer());
 
   QUARK_OK();
 }
@@ -388,10 +236,7 @@ VulkanContext::~VulkanContext() {
     vkDeviceWaitIdle(device);
   }
 
-  destroy_triangle_vertex_buffer();
-#if !QUARK_HEADLESS
-  destroy_triangle_pipeline();
-#endif
+  renderer_.destroy();
 
   frame_.destroy();
   retirement_queue_.destroy();
@@ -402,7 +247,6 @@ VulkanContext::~VulkanContext() {
   presenter_.destroy();
 #endif
 
-  shader_registry_.destroy();
   device_.destroy();
   instance_.destroy();
 }
@@ -690,25 +534,7 @@ util::Status VulkanContext::record_command_buffer(uint32_t image_index) {
 
     cmd_begin_rendering_(cb, &rendering_info);
 
-    vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                      triangle_pipeline_.pipeline());
-    VkViewport viewport{};
-
-    viewport.x = 0.0F;
-    viewport.y = 0.0F;
-    viewport.width = static_cast<float>(presenter_.swapchain().extent().width);
-    viewport.height =
-        static_cast<float>(presenter_.swapchain().extent().height);
-    viewport.minDepth = 0.0F;
-    viewport.maxDepth = 1.0F;
-    vkCmdSetViewport(cb, 0, 1, &viewport);
-    VkRect2D scissor{};
-    scissor.offset = {.x = 0, .y = 0};
-    scissor.extent = presenter_.swapchain().extent();
-    vkCmdSetScissor(cb, 0, 1, &scissor);
-    array<VkDeviceSize, 1> offsets = {0};
-    vkCmdBindVertexBuffers(cb, 0, 1, &triangle_vertex_buffer_, offsets.data());
-    vkCmdDraw(cb, triangle_vertex_count_, 1, 0, 0);
+    renderer_.draw(cb, presenter_.swapchain().extent());
 
     cmd_end_rendering_(cb);
 
@@ -739,25 +565,7 @@ util::Status VulkanContext::record_command_buffer(uint32_t image_index) {
     render_pass_info.pClearValues = &clear_color;
 
     vkCmdBeginRenderPass(cb, &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
-    // --- Triangle rendering (fallback path) ---
-    vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                      triangle_pipeline_.pipeline());
-    VkViewport viewport{};
-    viewport.x = 0.0F;
-    viewport.y = 0.0F;
-    viewport.width = static_cast<float>(presenter_.swapchain().extent().width);
-    viewport.height =
-        static_cast<float>(presenter_.swapchain().extent().height);
-    viewport.minDepth = 0.0F;
-    viewport.maxDepth = 1.0F;
-    vkCmdSetViewport(cb, 0, 1, &viewport);
-    VkRect2D scissor{};
-    scissor.offset = {.x = 0, .y = 0};
-    scissor.extent = presenter_.swapchain().extent();
-    vkCmdSetScissor(cb, 0, 1, &scissor);
-    array<VkDeviceSize, 1> offsets{0};
-    vkCmdBindVertexBuffers(cb, 0, 1, &triangle_vertex_buffer_, offsets.data());
-    vkCmdDraw(cb, triangle_vertex_count_, 1, 0, 0);
+    renderer_.draw(cb, presenter_.swapchain().extent());
     vkCmdEndRenderPass(cb);
   }
 

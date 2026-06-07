@@ -1,7 +1,6 @@
 #pragma once
 
-#include "quark/platform/shader/details/shader_registry.hpp"
-#include "quark/vk/pipeline/graphics_pipeline_bundle.hpp"
+#include "quark/vk/renderer.hpp"
 
 #include <array>
 #include <cstdint>
@@ -108,19 +107,7 @@ private:
   uint32_t current_frame_{};
 #endif
 
-  GraphicsPipelineBundle triangle_pipeline_;
-  ShaderRegistry shader_registry_;
-
-  // Triangle rendering resources
-  VkBuffer triangle_vertex_buffer_{VK_NULL_HANDLE};
-  VkDeviceMemory triangle_vertex_memory_{VK_NULL_HANDLE};
-  uint32_t triangle_vertex_count_{};
-
-  // Triangle setup/cleanup
-  util::Status create_triangle_pipeline();
-  void destroy_triangle_pipeline();
-  util::Status create_triangle_vertex_buffer();
-  void destroy_triangle_vertex_buffer();
+  Renderer renderer_;
 };
 
 } // namespace quark::vk

@@ -35,6 +35,7 @@ public:
   [[nodiscard]] uint32_t graphics_queue_family_index() const noexcept;
   [[nodiscard]] uint32_t present_queue_family_index() const noexcept;
   [[nodiscard]] details::DeviceCapabilities capabilities() const noexcept;
+  [[nodiscard]] VmaAllocator vma_allocator() const noexcept;
 
 private:
   details::Device device_;

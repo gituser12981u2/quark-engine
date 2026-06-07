@@ -62,4 +62,8 @@ details::DeviceCapabilities DeviceBundle::capabilities() const noexcept {
   return device_.capabilities();
 }
 
+VmaAllocator DeviceBundle::vma_allocator() const noexcept {
+  return device_.vma_allocator();
+}
+
 } // namespace quark::vk
