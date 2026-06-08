@@ -10,6 +10,7 @@
 namespace quark::vk {
 
 class Buffer final {
+
 public:
   struct CreateInfo {
     VmaAllocator allocator = nullptr;
@@ -23,7 +24,34 @@ public:
   Buffer() = default;
   ~Buffer() { destroy(); }
 
-  QUARK_NO_COPY_NO_MOVE(Buffer);
+  QUARK_NO_COPY(Buffer); // do we want copy or not?
+
+  Buffer(Buffer &&other) noexcept
+      : allocator_(other.allocator_), buffer_(other.buffer_),
+        allocation_(other.allocation_), size_(other.size_) {
+    other.allocator_ = nullptr;
+    other.buffer_ = VK_NULL_HANDLE;
+    other.allocation_ = nullptr;
+    other.size_ = 0;
+  }
+
+  Buffer &operator=(Buffer &&other) noexcept {
+    if (this == &other) {
+      return *this;
+    }
+
+    this->destroy();
+    allocator_ = other.allocator_;
+    buffer_ = other.buffer_;
+    allocation_ = other.allocation_;
+    size_ = other.size_;
+
+    other.allocator_ = nullptr;
+    other.buffer_ = VK_NULL_HANDLE;
+    other.allocation_ = nullptr;
+    other.size_ = 0;
+    return *this;
+  }
 
   util::Status create(const CreateInfo &ci);
   void destroy() noexcept;
@@ -31,7 +59,7 @@ public:
   util::Status upload(const void *src, size_t byte_count,
                       VkDeviceSize offset = 0);
 
-  [[nodiscard]] bool valid() noexcept { return buffer_ != nullptr; }
+  [[nodiscard]] bool valid() noexcept { return buffer_ != VK_NULL_HANDLE; }
 
   [[nodiscard]] VkBuffer handle() const noexcept { return buffer_; }
   [[nodiscard]] VkDeviceSize size() const noexcept { return size_; }

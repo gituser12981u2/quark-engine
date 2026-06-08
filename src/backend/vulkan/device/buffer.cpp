@@ -1,7 +1,8 @@
 #include <cstddef>
-#include <cstring>
+#include <limits>
 #include <quark/utils/diagnostic.hpp>
 #include <quark/vk/buffer.hpp>
+#include <quark/vk/diagnostic_prelude.hpp>
 #include <quark/vk/vk_error.hpp>
 
 namespace quark::vk {
@@ -26,11 +27,8 @@ util::Status Buffer::create(const Buffer::CreateInfo &ci) {
   alloc_info.usage = ci.memory_usage;
   alloc_info.flags = ci.allocation_flags;
 
-  VkResult result = vmaCreateBuffer(ci.allocator, &buffer_info, &alloc_info,
-                                    &buffer_, &allocation_, nullptr);
-  if (result != VK_SUCCESS) {
-    return util::unexpected(vk_error(result, "vmaCreateBuffer"));
-  }
+  QUARK_VK_TRY(vmaCreateBuffer(ci.allocator, &buffer_info, &alloc_info,
+                               &buffer_, &allocation_, nullptr));
 
   allocator_ = ci.allocator;
   size_ = ci.size;
@@ -55,18 +53,19 @@ util::Status Buffer::upload(const void *src, size_t byte_count,
                QUARK_ERR(util::Errc::InvalidState, "Buffer is not created"));
   QUARK_ENSURE(src != nullptr,
                QUARK_ERR(util::Errc::InvalidArg, "Upload source is null"));
+  QUARK_ENSURE(offset <= size_, QUARK_ERR(util::Errc::InvalidArg,
+                                          "Upload offset exceeds buffer size"));
+  QUARK_ENSURE(byte_count <= (std::numeric_limits<VkDeviceSize>::max)(),
+               QUARK_ERR(util::Errc::InvalidArg,
+                         "Upload byte_count exceeds VkDeviceSize"));
+
+  const VkDeviceSize copy_size = static_cast<VkDeviceSize>(byte_count);
   QUARK_ENSURE(
-      offset + static_cast<VkDeviceSize>(byte_count) <= size_,
+      copy_size <= (size_ - offset),
       QUARK_ERR(util::Errc::InvalidArg, "Upload range exceeds buffer size"));
 
-  void *mapped = nullptr;
-  VkResult result = vmaMapMemory(allocator_, allocation_, &mapped);
-  if (result != VK_SUCCESS) {
-    return util::unexpected(vk_error(result, "vmaMapMemory"));
-  }
-
-  std::memcpy(static_cast<std::byte *>(mapped) + offset, src, byte_count);
-  vmaUnmapMemory(allocator_, allocation_);
+  QUARK_VK_TRY(vmaCopyMemoryToAllocation(allocator_, src, allocation_, offset,
+                                         copy_size));
   QUARK_OK();
 }
 
