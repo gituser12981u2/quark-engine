@@ -216,7 +216,7 @@ util::Status VulkanContext::init() {
 
   QUARK_TRY_STATUS(renderer_.create({
       .device = device_.view(),
-      .allocator = device_.vma_allocator(),
+      .allocator = &device_.allocator(),
       .retire_queue = &retirement_queue_,
       .extent = presenter_.swapchain().extent(),
       .color_format = presenter_.swapchain().format(),

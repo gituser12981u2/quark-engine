@@ -1,9 +1,11 @@
 #pragma once
 
 #include <cstddef>
+#include <utility>
 
 #include <quark/utils/raii.hpp>
 #include <quark/utils/result.hpp>
+#include <quark/vk/allocator.hpp>
 #include <vk_mem_alloc.h>
 #include <vulkan/vulkan_core.h>
 
@@ -13,27 +15,24 @@ class Buffer final {
 
 public:
   struct CreateInfo {
-    VmaAllocator allocator = nullptr;
+    const Allocator *allocator = nullptr;
     VkDeviceSize size{};
     VkBufferUsageFlags usage{};
-    VmaMemoryUsage memory_usage = VMA_MEMORY_USAGE_AUTO;
+    VmaMemoryUsage memory_usage{VMA_MEMORY_USAGE_AUTO};
     VmaAllocationCreateFlags allocation_flags{};
-    VkSharingMode sharing_mode = VK_SHARING_MODE_EXCLUSIVE;
+    VkSharingMode sharing_mode{VK_SHARING_MODE_EXCLUSIVE};
   };
 
   Buffer() = default;
   ~Buffer() { destroy(); }
 
-  QUARK_NO_COPY(Buffer); // do we want copy or not?
+  QUARK_NO_COPY(Buffer);
 
   Buffer(Buffer &&other) noexcept
-      : allocator_(other.allocator_), buffer_(other.buffer_),
-        allocation_(other.allocation_), size_(other.size_) {
-    other.allocator_ = nullptr;
-    other.buffer_ = VK_NULL_HANDLE;
-    other.allocation_ = nullptr;
-    other.size_ = 0;
-  }
+      : allocator_(std::exchange(other.allocator_, nullptr)),
+        buffer_(std::exchange(other.buffer_, VK_NULL_HANDLE)),
+        allocation_(std::exchange(other.allocation_, nullptr)),
+        size_(std::exchange(other.size_, 0)) {}
 
   Buffer &operator=(Buffer &&other) noexcept {
     if (this == &other) {
@@ -41,15 +40,10 @@ public:
     }
 
     this->destroy();
-    allocator_ = other.allocator_;
-    buffer_ = other.buffer_;
-    allocation_ = other.allocation_;
-    size_ = other.size_;
-
-    other.allocator_ = nullptr;
-    other.buffer_ = VK_NULL_HANDLE;
-    other.allocation_ = nullptr;
-    other.size_ = 0;
+    allocator_ = std::exchange(other.allocator_, nullptr);
+    buffer_ = std::exchange(other.buffer_, VK_NULL_HANDLE);
+    allocation_ = std::exchange(other.allocation_, nullptr);
+    size_ = std::exchange(other.size_, 0);
     return *this;
   }
 

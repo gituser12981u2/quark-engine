@@ -5,11 +5,14 @@
 #include <quark/vk/pipeline/vertex_layout.hpp>
 #include <quark/vk/triangle_renderer.hpp>
 
-
 namespace quark::vk {
 
 util::Status TriangleRenderer::create(const TriangleRenderer::CreateInfo &ci) {
   destroy();
+
+  QUARK_ENSURE(
+      ci.allocator != nullptr,
+      QUARK_ERR(util::Errc::InvalidArg, "Triangle renderer allocator is null"));
 
   QUARK_TRY_STATUS(shader_registry_.create({.device = ci.device.device}));
 
@@ -44,12 +47,13 @@ util::Status TriangleRenderer::create(const TriangleRenderer::CreateInfo &ci) {
       },
   };
 
-  const std::array<ColorAttachmentDesc, 1> color_attachments{ColorAttachmentDesc{
-      .format = ci.color_format,
-  }};
+  const std::array<ColorAttachmentDesc, 1> color_attachments{
+      ColorAttachmentDesc{
+          .format = ci.color_format,
+      }};
 
   const std::array<VkDynamicState, 2> dynamic_states{VK_DYNAMIC_STATE_VIEWPORT,
-                                                VK_DYNAMIC_STATE_SCISSOR};
+                                                     VK_DYNAMIC_STATE_SCISSOR};
 
   const GraphicsPipelineDesc desc{
       .stages = stages,
@@ -72,7 +76,7 @@ util::Status TriangleRenderer::create(const TriangleRenderer::CreateInfo &ci) {
       .desc = &desc,
   }));
 
-  QUARK_TRY_STATUS(vertex_buffer_.create(ci.allocator));
+  QUARK_TRY_STATUS(vertex_buffer_.create(*ci.allocator));
   QUARK_OK();
 }
 

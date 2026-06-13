@@ -7,7 +7,7 @@ using std::array;
 
 namespace quark::vk {
 
-util::Status TriangleVertexBuffer::create(VmaAllocator allocator) {
+util::Status TriangleVertexBuffer::create(const Allocator &allocator) {
   // Vertex data: 3 vertices, each with vec2 position and vec3 color.
   constexpr array<float, 15> triangle_vertices = {
       //  x,     y,     r,   g,   b
@@ -19,7 +19,7 @@ util::Status TriangleVertexBuffer::create(VmaAllocator allocator) {
   constexpr VkDeviceSize buffer_size = sizeof(triangle_vertices);
 
   QUARK_TRY_STATUS(vertex_buffer_.create({
-      .allocator = allocator,
+      .allocator = &allocator,
       .size = buffer_size,
       .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
       .memory_usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST,

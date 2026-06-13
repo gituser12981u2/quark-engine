@@ -12,10 +12,15 @@ util::Status Buffer::create(const Buffer::CreateInfo &ci) {
 
   QUARK_ENSURE(ci.allocator != nullptr,
                QUARK_ERR(util::Errc::InvalidArg, "Buffer allocator is null"));
+  QUARK_ENSURE(
+      ci.allocator->valid(),
+      QUARK_ERR(util::Errc::InvalidArg, "Buffer allocator is not created"));
   QUARK_ENSURE(ci.size > 0,
                QUARK_ERR(util::Errc::InvalidArg, "Buffer size must be > 0"));
   QUARK_ENSURE(ci.usage != 0,
                QUARK_ERR(util::Errc::InvalidArg, "Buffer usage must be set"));
+
+  VmaAllocator allocator = ci.allocator->handle();
 
   VkBufferCreateInfo buffer_info{};
   buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -27,10 +32,10 @@ util::Status Buffer::create(const Buffer::CreateInfo &ci) {
   alloc_info.usage = ci.memory_usage;
   alloc_info.flags = ci.allocation_flags;
 
-  QUARK_VK_TRY(vmaCreateBuffer(ci.allocator, &buffer_info, &alloc_info,
-                               &buffer_, &allocation_, nullptr));
+  QUARK_VK_TRY(vmaCreateBuffer(allocator, &buffer_info, &alloc_info, &buffer_,
+                               &allocation_, nullptr));
 
-  allocator_ = ci.allocator;
+  allocator_ = allocator;
   size_ = ci.size;
   QUARK_OK();
 }

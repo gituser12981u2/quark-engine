@@ -1,5 +1,6 @@
 add_library(
   quark_backend_vulkan_device STATIC
+  allocator.cpp
   device.cpp
   device_feature_chain_builder.cpp
   device_bundle.cpp
