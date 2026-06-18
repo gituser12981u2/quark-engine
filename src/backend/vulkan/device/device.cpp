@@ -92,8 +92,11 @@ util::Status Device::create(const Device::CreateInfo &ci) {
 
   util::Status allocator_status = allocator_.create({
       .instance = ci.instance,
-      .physical_device = physical_device_,
-      .device = device_,
+      .device =
+          {
+              .physical_device = physical_device_,
+              .device = device_,
+          },
       .allocation_callbacks = alloc_,
       .vulkan_api_version = capabilities_.api_version,
   });

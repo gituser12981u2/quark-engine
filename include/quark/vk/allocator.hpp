@@ -2,6 +2,7 @@
 
 #include <quark/utils/raii.hpp>
 #include <quark/utils/result.hpp>
+#include <quark/vk/device/device_view.hpp>
 #include <utility>
 #include <vk_mem_alloc.h>
 #include <vulkan/vulkan_core.h>
@@ -12,8 +13,7 @@ class Allocator final {
 public:
   struct CreateInfo {
     VkInstance instance{VK_NULL_HANDLE};
-    VkPhysicalDevice physical_device{VK_NULL_HANDLE};
-    VkDevice device{VK_NULL_HANDLE};
+    DeviceView device{};
     const VkAllocationCallbacks *allocation_callbacks{nullptr};
     uint32_t vulkan_api_version{VK_API_VERSION_1_0};
   };

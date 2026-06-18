@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cstddef>
-#include <utility>
+#include <memory>
 
 #include <quark/utils/raii.hpp>
 #include <quark/utils/result.hpp>
@@ -26,26 +26,7 @@ public:
   Buffer() = default;
   ~Buffer() { destroy(); }
 
-  QUARK_NO_COPY(Buffer);
-
-  Buffer(Buffer &&other) noexcept
-      : allocator_(std::exchange(other.allocator_, nullptr)),
-        buffer_(std::exchange(other.buffer_, VK_NULL_HANDLE)),
-        allocation_(std::exchange(other.allocation_, nullptr)),
-        size_(std::exchange(other.size_, 0)) {}
-
-  Buffer &operator=(Buffer &&other) noexcept {
-    if (this == &other) {
-      return *this;
-    }
-
-    this->destroy();
-    allocator_ = std::exchange(other.allocator_, nullptr);
-    buffer_ = std::exchange(other.buffer_, VK_NULL_HANDLE);
-    allocation_ = std::exchange(other.allocation_, nullptr);
-    size_ = std::exchange(other.size_, 0);
-    return *this;
-  }
+  QUARK_MOVE_ONLY(Buffer);
 
   util::Status create(const CreateInfo &ci);
   void destroy() noexcept;
@@ -53,16 +34,30 @@ public:
   util::Status upload(const void *src, size_t byte_count,
                       VkDeviceSize offset = 0);
 
-  [[nodiscard]] bool valid() noexcept { return buffer_ != VK_NULL_HANDLE; }
+  [[nodiscard]] bool valid() noexcept {
+    return state_ != nullptr && state_->buffer != VK_NULL_HANDLE;
+  }
 
-  [[nodiscard]] VkBuffer handle() const noexcept { return buffer_; }
-  [[nodiscard]] VkDeviceSize size() const noexcept { return size_; }
+  [[nodiscard]] VkBuffer handle() const noexcept {
+    return state_ == nullptr ? VK_NULL_HANDLE : state_->buffer;
+  }
+  [[nodiscard]] VkDeviceSize size() const noexcept {
+    return state_ == nullptr ? 0 : state_->size;
+  }
 
 private:
-  VmaAllocator allocator_{nullptr};
-  VkBuffer buffer_{VK_NULL_HANDLE};
-  VmaAllocation allocation_{nullptr};
-  VkDeviceSize size_{};
+  struct State {
+    VmaAllocator allocator{nullptr};
+    VkBuffer buffer{VK_NULL_HANDLE};
+    VmaAllocation allocation{nullptr};
+    VkDeviceSize size{};
+  };
+
+  struct StateDeleter {
+    void operator()(State *state) const noexcept;
+  };
+
+  std::unique_ptr<State, StateDeleter> state_;
 };
 
 } // namespace quark::vk

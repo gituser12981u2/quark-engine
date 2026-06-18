@@ -1,6 +1,5 @@
-#include <quark/utils/diagnostic.hpp>
 #include <quark/vk/allocator.hpp>
-#include <quark/vk/vk_error.hpp>
+#include <quark/vk/diagnostic_prelude.hpp>
 
 namespace quark::vk {
 
@@ -10,17 +9,17 @@ util::Status Allocator::create(const Allocator::CreateInfo &ci) {
   QUARK_ENSURE(
       ci.instance != VK_NULL_HANDLE,
       QUARK_ERR(util::Errc::InvalidArg, "Allocator instance must be valid"));
-  QUARK_ENSURE(ci.physical_device != VK_NULL_HANDLE,
+  QUARK_ENSURE(ci.device.physical_device != VK_NULL_HANDLE,
                QUARK_ERR(util::Errc::InvalidArg,
                          "Allocator physical device must be valid"));
-  QUARK_ENSURE(ci.device != VK_NULL_HANDLE,
+  QUARK_ENSURE(ci.device.device != VK_NULL_HANDLE,
                QUARK_ERR(util::Errc::InvalidArg,
                          "Allocator logical device must be valid"));
 
   const VmaAllocatorCreateInfo allocator_info{
       .flags = 0,
-      .physicalDevice = ci.physical_device,
-      .device = ci.device,
+      .physicalDevice = ci.device.physical_device,
+      .device = ci.device.device,
       .preferredLargeHeapBlockSize = 0,
       .pAllocationCallbacks = ci.allocation_callbacks,
       .pDeviceMemoryCallbacks = nullptr,
@@ -33,10 +32,7 @@ util::Status Allocator::create(const Allocator::CreateInfo &ci) {
 #endif
   };
 
-  const VkResult result = vmaCreateAllocator(&allocator_info, &allocator_);
-  if (result != VK_SUCCESS) {
-    return util::unexpected(vk_error(result, "vmaCreateAllocator"));
-  }
+  QUARK_VK_TRY(vmaCreateAllocator(&allocator_info, &allocator_));
 
   QUARK_OK();
 }
