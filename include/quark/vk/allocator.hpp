@@ -2,6 +2,7 @@
 
 #include <quark/utils/raii.hpp>
 #include <quark/utils/result.hpp>
+#include <utility>
 #include <vk_mem_alloc.h>
 #include <vulkan/vulkan_core.h>
 
@@ -23,9 +24,7 @@ public:
   QUARK_NO_COPY(Allocator);
 
   [[nodiscard]] constexpr Allocator(Allocator &&other) noexcept
-      : allocator_(other.allocator_) {
-    other.allocator_ = nullptr;
-  }
+      : allocator_(std::exchange(other.allocator_, nullptr)) {}
 
   [[nodiscard]] constexpr Allocator &operator=(Allocator &&other) noexcept {
     if (this == &other) {
@@ -33,8 +32,7 @@ public:
     }
 
     destroy();
-    allocator_ = other.allocator_;
-    other.allocator_ = nullptr;
+    allocator_ = std::exchange(other.allocator_, nullptr);
     return *this;
   }
 
