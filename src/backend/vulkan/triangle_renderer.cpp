@@ -11,6 +11,10 @@ namespace quark::vk {
 util::Status TriangleRenderer::create(const TriangleRenderer::CreateInfo &ci) {
   destroy();
 
+  QUARK_ENSURE(
+      ci.allocator != nullptr,
+      QUARK_ERR(util::Errc::InvalidArg, "Triangle renderer allocator is null"));
+
   QUARK_TRY_STATUS(shader_registry_.create({.device = ci.device.device}));
 
   ShaderHandle vert_shader{};
@@ -87,7 +91,7 @@ util::Status TriangleRenderer::create(const TriangleRenderer::CreateInfo &ci) {
       .desc = &desc,
   }));
 
-  QUARK_TRY_STATUS(vertex_buffer_.create(ci.allocator));
+  QUARK_TRY_STATUS(vertex_buffer_.create(*ci.allocator));
   QUARK_OK();
 }
 

@@ -1,9 +1,11 @@
 #pragma once
 
 #include <cstddef>
+#include <memory>
 
 #include <quark/utils/raii.hpp>
 #include <quark/utils/result.hpp>
+#include <quark/vk/allocator.hpp>
 #include <vk_mem_alloc.h>
 #include <vulkan/vulkan_core.h>
 
@@ -13,45 +15,18 @@ class Buffer final {
 
 public:
   struct CreateInfo {
-    VmaAllocator allocator = nullptr;
+    const Allocator *allocator = nullptr;
     VkDeviceSize size{};
     VkBufferUsageFlags usage{};
-    VmaMemoryUsage memory_usage = VMA_MEMORY_USAGE_AUTO;
+    VmaMemoryUsage memory_usage{VMA_MEMORY_USAGE_AUTO};
     VmaAllocationCreateFlags allocation_flags{};
-    VkSharingMode sharing_mode = VK_SHARING_MODE_EXCLUSIVE;
+    VkSharingMode sharing_mode{VK_SHARING_MODE_EXCLUSIVE};
   };
 
   Buffer() = default;
   ~Buffer() { destroy(); }
 
-  QUARK_NO_COPY(Buffer); // do we want copy or not?
-
-  Buffer(Buffer &&other) noexcept
-      : allocator_(other.allocator_), buffer_(other.buffer_),
-        allocation_(other.allocation_), size_(other.size_) {
-    other.allocator_ = nullptr;
-    other.buffer_ = VK_NULL_HANDLE;
-    other.allocation_ = nullptr;
-    other.size_ = 0;
-  }
-
-  Buffer &operator=(Buffer &&other) noexcept {
-    if (this == &other) {
-      return *this;
-    }
-
-    this->destroy();
-    allocator_ = other.allocator_;
-    buffer_ = other.buffer_;
-    allocation_ = other.allocation_;
-    size_ = other.size_;
-
-    other.allocator_ = nullptr;
-    other.buffer_ = VK_NULL_HANDLE;
-    other.allocation_ = nullptr;
-    other.size_ = 0;
-    return *this;
-  }
+  QUARK_MOVE_ONLY(Buffer);
 
   util::Status create(const CreateInfo &ci);
   void destroy() noexcept;
@@ -59,16 +34,30 @@ public:
   util::Status upload(const void *src, size_t byte_count,
                       VkDeviceSize offset = 0);
 
-  [[nodiscard]] bool valid() noexcept { return buffer_ != VK_NULL_HANDLE; }
+  [[nodiscard]] bool valid() noexcept {
+    return state_ != nullptr && state_->buffer != VK_NULL_HANDLE;
+  }
 
-  [[nodiscard]] VkBuffer handle() const noexcept { return buffer_; }
-  [[nodiscard]] VkDeviceSize size() const noexcept { return size_; }
+  [[nodiscard]] VkBuffer handle() const noexcept {
+    return state_ == nullptr ? VK_NULL_HANDLE : state_->buffer;
+  }
+  [[nodiscard]] VkDeviceSize size() const noexcept {
+    return state_ == nullptr ? 0 : state_->size;
+  }
 
 private:
-  VmaAllocator allocator_{nullptr};
-  VkBuffer buffer_{VK_NULL_HANDLE};
-  VmaAllocation allocation_{nullptr};
-  VkDeviceSize size_{};
+  struct State {
+    VmaAllocator allocator{nullptr};
+    VkBuffer buffer{VK_NULL_HANDLE};
+    VmaAllocation allocation{nullptr};
+    VkDeviceSize size{};
+  };
+
+  struct StateDeleter {
+    void operator()(State *state) const noexcept;
+  };
+
+  std::unique_ptr<State, StateDeleter> state_;
 };
 
 } // namespace quark::vk

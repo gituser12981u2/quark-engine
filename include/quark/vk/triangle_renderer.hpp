@@ -6,10 +6,10 @@
 #include <quark/platform/shader/details/shader_registry.hpp>
 #include <quark/utils/raii.hpp>
 #include <quark/utils/result.hpp>
+#include <quark/vk/allocator.hpp>
 #include <quark/vk/device/device_view.hpp>
 #include <quark/vk/pipeline/graphics_pipeline_desc.hpp>
 #include <quark/vk/triangle_vertex_buffer.hpp>
-#include <vk_mem_alloc.h>
 #include <vulkan/vulkan_core.h>
 
 namespace quark::vk {
@@ -18,7 +18,7 @@ class TriangleRenderer final {
 public:
   struct CreateInfo {
     DeviceView device{};
-    VmaAllocator allocator = nullptr;
+    const Allocator *allocator = nullptr;
     RetirementQueue *retire_queue = nullptr;
     VkExtent2D extent{};
     VkFormat color_format{VK_FORMAT_UNDEFINED};

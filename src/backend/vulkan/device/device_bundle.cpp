@@ -55,11 +55,15 @@ uint32_t DeviceBundle::graphics_queue_family_index() const noexcept {
 }
 
 uint32_t DeviceBundle::present_queue_family_index() const noexcept {
-  return device_.graphics_queue_family_index();
+  return device_.present_queue_family_index();
 }
 
 details::DeviceCapabilities DeviceBundle::capabilities() const noexcept {
   return device_.capabilities();
+}
+
+const Allocator &DeviceBundle::allocator() const noexcept {
+  return device_.allocator();
 }
 
 VmaAllocator DeviceBundle::vma_allocator() const noexcept {

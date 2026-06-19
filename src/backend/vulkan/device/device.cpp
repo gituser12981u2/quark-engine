@@ -90,27 +90,28 @@ util::Status Device::create(const Device::CreateInfo &ci) {
     present_queue_family_index_ = graphics_queue_family_index_;
   }
 
-  VmaAllocatorCreateInfo allocator_info{};
-  allocator_info.physicalDevice = physical_device_;
-  allocator_info.device = device_;
-  allocator_info.instance = ci.instance;
-  allocator_info.pAllocationCallbacks = alloc_;
-  allocator_info.vulkanApiVersion = capabilities_.api_version;
-
-  VkResult allocator_result = vmaCreateAllocator(&allocator_info, &allocator_);
-  if (allocator_result != VK_SUCCESS) {
+  util::Status allocator_status = allocator_.create({
+      .instance = ci.instance,
+      .device =
+          {
+              .physical_device = physical_device_,
+              .device = device_,
+          },
+      .allocation_callbacks = alloc_,
+      .vulkan_api_version = capabilities_.api_version,
+  });
+  if (!allocator_status) {
     destroy();
-    return util::unexpected(vk_error(allocator_result, "vmaCreateAllocator"));
+    // return std::move(allocator_status); // uncomment this line to see a nice
+    // lint.
+    return allocator_status;
   }
 
   QUARK_OK();
 }
 
 void Device::destroy() noexcept {
-  if (allocator_ != nullptr) {
-    vmaDestroyAllocator(allocator_);
-    allocator_ = nullptr;
-  }
+  allocator_.destroy();
 
   if (device_ != VK_NULL_HANDLE) {
     vkDestroyDevice(device_, nullptr);

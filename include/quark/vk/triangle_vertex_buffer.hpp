@@ -4,6 +4,7 @@
 
 #include <quark/utils/raii.hpp>
 #include <quark/utils/result.hpp>
+#include <quark/vk/allocator.hpp>
 #include <quark/vk/buffer.hpp>
 
 namespace quark::vk {
@@ -15,7 +16,7 @@ public:
 
   QUARK_NO_COPY_NO_MOVE(TriangleVertexBuffer);
 
-  util::Status create(VmaAllocator allocator);
+  util::Status create(const Allocator &allocator);
   void destroy() noexcept;
 
   void bind(VkCommandBuffer command_buffer) const noexcept;
