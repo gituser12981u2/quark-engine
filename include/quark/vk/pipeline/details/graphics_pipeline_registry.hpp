@@ -79,7 +79,7 @@ public:
 
   using Base::alive;
 
-  [[nodiscard]] VkPipeline
+  [[nodiscard]] const Pipeline *
   pipeline(GraphicsPipelineHandle handle) const noexcept;
   [[nodiscard]] const quark::vk::PipelineLayout *
   layout(GraphicsPipelineHandle handle) const noexcept;

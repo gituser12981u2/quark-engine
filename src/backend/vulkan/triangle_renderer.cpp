@@ -101,7 +101,7 @@ void TriangleRenderer::destroy() noexcept {
 void TriangleRenderer::draw(VkCommandBuffer command_buffer,
                             VkExtent2D extent) const noexcept {
   vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                    pipeline_.pipeline());
+                    pipeline_.view().vk_pipeline());
 
   VkViewport viewport{};
   viewport.x = 0.0F;

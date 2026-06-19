@@ -2,6 +2,7 @@
 #include "quark/utils/diagnostic.hpp"
 #include "quark/utils/error_types.hpp"
 #include "quark/utils/result.hpp"
+#include "quark/vk/pipeline/details/pipeline.hpp"
 #include "quark/vk/pipeline/graphics_pipeline_desc.hpp"
 #include "quark/vk/pipeline/graphics_pipeline_view.hpp"
 #include "quark/vk/pipeline/pipeline_layout.hpp"
@@ -38,7 +39,7 @@ void GraphicsPipeline::destroy() noexcept {
   handle_ = {};
 }
 
-VkPipeline GraphicsPipeline::pipeline() const noexcept {
+const details::Pipeline *GraphicsPipeline::pipeline() const noexcept {
   return registry_.pipeline(handle_);
 }
 

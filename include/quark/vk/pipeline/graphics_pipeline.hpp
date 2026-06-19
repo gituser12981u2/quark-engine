@@ -4,6 +4,7 @@
 #include "quark/utils/result.hpp"
 #include "quark/vk/pipeline/details/graphics_pipeline_handle.hpp"
 #include "quark/vk/pipeline/details/graphics_pipeline_registry.hpp"
+#include "quark/vk/pipeline/details/pipeline.hpp"
 #include "quark/vk/pipeline/graphics_pipeline_view.hpp"
 #include "quark/vk/pipeline/pipeline_layout.hpp"
 #include <cstdint>
@@ -35,7 +36,7 @@ public:
 
   [[nodiscard]] bool valid() const noexcept { return registry_.alive(handle_); }
 
-  [[nodiscard]] VkPipeline pipeline() const noexcept;
+  [[nodiscard]] const details::Pipeline *pipeline() const noexcept;
   [[nodiscard]] const PipelineLayout *layout() const noexcept;
   [[nodiscard]] GraphicsPipelineView view() const noexcept;
 

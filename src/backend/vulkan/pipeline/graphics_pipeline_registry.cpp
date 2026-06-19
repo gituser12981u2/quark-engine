@@ -4,6 +4,7 @@
 #include "quark/utils/result.hpp"
 #include "quark/vk/device/device_view.hpp"
 #include "quark/vk/pipeline/details/graphics_pipeline_handle.hpp"
+#include "quark/vk/pipeline/details/pipeline.hpp"
 #include "quark/vk/pipeline/graphics_pipeline_desc.hpp"
 #include "quark/vk/pipeline/pipeline_layout.hpp"
 #include <cstdint>
@@ -98,10 +99,10 @@ void GraphicsPipelineRegistry::destroy(GraphicsPipelineHandle handle,
   retire_live_slot_(handle, retire_at);
 }
 
-VkPipeline GraphicsPipelineRegistry::pipeline(
+const Pipeline *GraphicsPipelineRegistry::pipeline(
     GraphicsPipelineHandle handle) const noexcept {
   const GraphicsPipelineSlot *slot = slot_if_live_(handle);
-  return slot == nullptr ? VK_NULL_HANDLE : slot->pipeline.handle();
+  return slot == nullptr ? nullptr : &slot->pipeline;
 }
 
 const quark::vk::PipelineLayout *
