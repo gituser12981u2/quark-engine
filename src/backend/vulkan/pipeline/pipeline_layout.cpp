@@ -1,36 +1,39 @@
-#include <quark/utils/error_types.hpp>
-#include <quark/vk/diagnostic_prelude.hpp>
-#include <quark/vk/pipeline/details/pipeline_layout.hpp>
+#include "quark/vk/pipeline/pipeline_layout.hpp"
+#include "quark/utils/diagnostic.hpp"
+#include "quark/utils/error_types.hpp"
+#include "quark/utils/result.hpp"
+#include <vulkan/vulkan_core.h>
 
-namespace quark::vk::details {
+namespace quark::vk {
 
 util::Status PipelineLayout::create(const CreateInfo &ci) {
-  QUARK_TRY_STATUS(validate(ci.device));
+  QUARK_ENSURE(ci.desc != nullptr, QUARK_ERR(util::Errc::InvalidArg,
+                                             "pipeline layout desc is null"));
 
   destroy();
 
-  device_ = ci.device;
+  QUARK_TRY_STATUS(registry_.create({
+      .device = ci.device,
+      .descriptor_set_layouts = ci.descriptor_set_layouts,
+      .retire_queue = ci.retire_queue,
+      .allocator = ci.allocator,
+  }));
 
-  VkPipelineLayoutCreateInfo layout_info{};
-  layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-  layout_info.setLayoutCount = ci.set_layout_count;
-  layout_info.pSetLayouts = ci.set_layouts;
-  layout_info.pushConstantRangeCount = ci.push_constant_range_count;
-  layout_info.pPushConstantRanges = ci.push_constant_ranges;
+  QUARK_TRY_ASSIGN(handle_,
+                   registry_.create_layout({
+                       .set_layouts = ci.desc->descriptor_set_layouts,
+                       .push_constant_ranges = ci.desc->push_constant_ranges,
+                   }));
 
-  QUARK_VK_TRY(vkCreatePipelineLayout(device_.device, &layout_info, allocator_,
-                                      &handle_));
+  backend_ = registry_.backend(handle_);
 
   QUARK_OK();
 }
 
 void PipelineLayout::destroy() noexcept {
-  if (device_.device != VK_NULL_HANDLE && handle_ != VK_NULL_HANDLE) {
-    vkDestroyPipelineLayout(device_.device, handle_, allocator_);
-  }
-
-  handle_ = VK_NULL_HANDLE;
-  device_ = {};
+  registry_.destroy();
+  handle_ = {};
+  backend_ = nullptr;
 }
 
-} // namespace quark::vk::details
+} // namespace quark::vk

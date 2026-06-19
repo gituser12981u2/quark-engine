@@ -1,10 +1,12 @@
 #pragma once
+
+#include "quark/vk/pipeline/graphics_pipeline.hpp"
+#include "quark/vk/pipeline/pipeline_layout.hpp"
 #include <quark/engine/retire/retirement_queue.hpp>
 #include <quark/platform/shader/details/shader_registry.hpp>
 #include <quark/utils/raii.hpp>
 #include <quark/utils/result.hpp>
 #include <quark/vk/device/device_view.hpp>
-#include <quark/vk/pipeline/graphics_pipeline_bundle.hpp>
 #include <quark/vk/pipeline/graphics_pipeline_desc.hpp>
 #include <quark/vk/triangle_vertex_buffer.hpp>
 #include <vk_mem_alloc.h>
@@ -35,7 +37,8 @@ public:
   void draw(VkCommandBuffer command_buffer, VkExtent2D extent) const noexcept;
 
 private:
-  GraphicsPipelineBundle pipeline_;
+  PipelineLayout pipeline_layout_;
+  GraphicsPipeline pipeline_;
   ShaderRegistry shader_registry_;
   TriangleVertexBuffer vertex_buffer_;
 };

@@ -4,26 +4,30 @@
 #include "quark/utils/raii.hpp"
 #include "quark/utils/result.hpp"
 #include "quark/vk/device/device_view.hpp"
-#include "quark/vk/pipeline/details/graphics_pipeline.hpp"
 #include "quark/vk/pipeline/details/graphics_pipeline_handle.hpp"
+#include "quark/vk/pipeline/details/pipeline.hpp"
 #include <cstdint>
 #include <vulkan/vulkan_core.h>
 
 namespace quark::vk {
 
+struct GraphicsPipelineDesc;
 class ShaderRegistry;
 class RetirementQueue;
+class PipelineLayout;
 
 namespace details {
 
 struct GraphicsPipelineSlot {
   bool live{false};
   uint32_t generation{1};
-  GraphicsPipeline pipeline;
+
+  Pipeline pipeline;
+  const quark::vk::PipelineLayout *layout{nullptr};
 };
 
 struct RetiredGraphicsPipeline {
-  GraphicsPipeline pipeline;
+  Pipeline pipeline;
 };
 
 struct GraphicsPipelineRegistryPolicy {
@@ -77,7 +81,7 @@ public:
 
   [[nodiscard]] VkPipeline
   pipeline(GraphicsPipelineHandle handle) const noexcept;
-  [[nodiscard]] VkPipelineLayout
+  [[nodiscard]] const quark::vk::PipelineLayout *
   layout(GraphicsPipelineHandle handle) const noexcept;
 
 private:

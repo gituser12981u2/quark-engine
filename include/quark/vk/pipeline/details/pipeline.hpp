@@ -4,17 +4,30 @@
 #include "quark/utils/result.hpp"
 #include "quark/vk/device/device_view.hpp"
 
-namespace quark::vk::details {
+namespace quark::vk {
+
+struct GraphicsPipelineDesc;
+class PipelineLayout;
+class ShaderRegistry;
+
+namespace details {
 
 class Pipeline final {
 public:
   struct CreateInfo {
     DeviceView device{};
-
     VkPipelineCache cache{VK_NULL_HANDLE};
-
     const VkGraphicsPipelineCreateInfo *graphics_info{nullptr};
+    const VkAllocationCallbacks *allocator{nullptr};
+  };
 
+  struct GraphicsCreateInfo {
+    DeviceView device{};
+    VkExtent2D extent{};
+    const GraphicsPipelineDesc *desc{nullptr};
+    const ShaderRegistry *shaders{nullptr};
+    const quark::vk::PipelineLayout *pipeline_layout{nullptr};
+    VkPipelineCache cache{VK_NULL_HANDLE};
     const VkAllocationCallbacks *allocator{nullptr};
   };
 
@@ -24,6 +37,7 @@ public:
   QUARK_MOVE_ONLY(Pipeline);
 
   [[nodiscard]] util::Status create(const CreateInfo &ci);
+  [[nodiscard]] util::Status create_graphics(const GraphicsCreateInfo &ci);
   void destroy() noexcept;
 
   [[nodiscard]] bool valid() const noexcept {
@@ -38,4 +52,6 @@ private:
   const VkAllocationCallbacks *allocator_{nullptr};
 };
 
-} // namespace quark::vk::details
+} // namespace details
+
+} // namespace quark::vk

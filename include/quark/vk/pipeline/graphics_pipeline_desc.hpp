@@ -1,5 +1,6 @@
 #pragma once
 
+#include "quark/vk/pipeline/pipeline_layout.hpp"
 #include "quark/vk/pipeline/shader_stage_desc.hpp"
 #include "quark/vk/pipeline/vertex_layout.hpp"
 
@@ -58,6 +59,8 @@ struct GraphicsPipelineDesc {
   DepthAttachmentDesc depth_attachment{};
 
   std::span<const VkDynamicState> dynamic_states;
+
+  const PipelineLayout *pipeline_layout{nullptr};
 
   // Probably shouldn't default initialize to anything
   PipelineRenderBackend backend{PipelineRenderBackend::DynamicRendering};

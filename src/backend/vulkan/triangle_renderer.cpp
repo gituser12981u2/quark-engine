@@ -1,10 +1,10 @@
+#include "quark/vk/pipeline/pipeline_layout.hpp"
 #include <array>
-
 #include <quark/utils/diagnostic.hpp>
 #include <quark/vk/pipeline/shader_stage_desc.hpp>
 #include <quark/vk/pipeline/vertex_layout.hpp>
 #include <quark/vk/triangle_renderer.hpp>
-
+#include <vulkan/vulkan_core.h>
 
 namespace quark::vk {
 
@@ -44,12 +44,26 @@ util::Status TriangleRenderer::create(const TriangleRenderer::CreateInfo &ci) {
       },
   };
 
-  const std::array<ColorAttachmentDesc, 1> color_attachments{ColorAttachmentDesc{
-      .format = ci.color_format,
-  }};
+  const std::array<ColorAttachmentDesc, 1> color_attachments{
+      ColorAttachmentDesc{
+          .format = ci.color_format,
+      }};
+
+  const PipelineLayout::Desc pipeline_layout_desc{
+      .descriptor_set_layouts = {},
+      .push_constant_ranges = {},
+  };
+
+  QUARK_TRY_STATUS(pipeline_layout_.create({
+      .device = ci.device,
+      .descriptor_set_layouts = nullptr,
+      .retire_queue = ci.retire_queue,
+      .allocator = nullptr,
+      .desc = &pipeline_layout_desc,
+  }));
 
   const std::array<VkDynamicState, 2> dynamic_states{VK_DYNAMIC_STATE_VIEWPORT,
-                                                VK_DYNAMIC_STATE_SCISSOR};
+                                                     VK_DYNAMIC_STATE_SCISSOR};
 
   const GraphicsPipelineDesc desc{
       .stages = stages,
@@ -60,15 +74,16 @@ util::Status TriangleRenderer::create(const TriangleRenderer::CreateInfo &ci) {
                                 .front_face = VK_FRONT_FACE_COUNTER_CLOCKWISE},
       .color_attachments = color_attachments,
       .dynamic_states = dynamic_states,
+      .pipeline_layout = &pipeline_layout_,
       .backend = ci.backend,
       .render_pass = ci.render_pass,
   };
 
   QUARK_TRY_STATUS(pipeline_.create({
       .device = ci.device,
+      .extent = ci.extent,
       .shaders = &shader_registry_,
       .retire_queue = ci.retire_queue,
-      .extent = ci.extent,
       .desc = &desc,
   }));
 
@@ -79,6 +94,7 @@ util::Status TriangleRenderer::create(const TriangleRenderer::CreateInfo &ci) {
 void TriangleRenderer::destroy() noexcept {
   vertex_buffer_.destroy();
   pipeline_.destroy();
+  pipeline_layout_.destroy();
   shader_registry_.destroy();
 }
 
