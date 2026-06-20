@@ -7,6 +7,7 @@
 #include "quark/vk/pipeline/details/pipeline_layout.hpp"
 #include "quark/vk/pipeline/details/pipeline_layout_handle.hpp"
 #include "quark/vk/pipeline/pipeline_limits.hpp"
+#include <array>
 #include <cstdint>
 #include <utility>
 
