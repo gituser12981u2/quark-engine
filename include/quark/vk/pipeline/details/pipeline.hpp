@@ -1,14 +1,23 @@
 #pragma once
 
+#include "quark/rhi/shader/details/shader_registry.hpp"
 #include "quark/utils/raii.hpp"
 #include "quark/utils/result.hpp"
 #include "quark/vk/device/device_view.hpp"
 
-namespace quark::vk {
+namespace quark {
+
+namespace rhi {
+class PipelineLayout;
+
+namespace details {
+class ShaderRegistry;
+}
+} // namespace rhi
+
+namespace vk {
 
 struct GraphicsPipelineDesc;
-class PipelineLayout;
-class ShaderRegistry;
 
 namespace details {
 
@@ -25,8 +34,8 @@ public:
     DeviceView device{};
     VkExtent2D extent{};
     const GraphicsPipelineDesc *desc{nullptr};
-    const ShaderRegistry *shaders{nullptr};
-    const quark::vk::PipelineLayout *pipeline_layout{nullptr};
+    const rhi::details::ShaderRegistry *shaders{nullptr};
+    const rhi::PipelineLayout *pipeline_layout{nullptr};
     VkPipelineCache cache{VK_NULL_HANDLE};
     const VkAllocationCallbacks *allocator{nullptr};
   };
@@ -53,5 +62,6 @@ private:
 };
 
 } // namespace details
+} // namespace vk
 
-} // namespace quark::vk
+} // namespace quark

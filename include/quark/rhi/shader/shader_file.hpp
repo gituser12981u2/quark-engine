@@ -6,7 +6,7 @@
 #include <filesystem>
 #include <vector>
 
-namespace quark::vk {
+namespace quark::rhi {
 
 [[nodiscard]] util::Result<std::vector<uint32_t>>
 read_spv_file(const std::filesystem::path &path);

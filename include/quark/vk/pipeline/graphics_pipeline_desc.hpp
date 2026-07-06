@@ -1,7 +1,7 @@
 #pragma once
 
-#include "quark/vk/pipeline/pipeline_layout.hpp"
-#include "quark/vk/pipeline/shader_stage_desc.hpp"
+#include "quark/rhi/pipeline/pipeline_layout.hpp"
+#include "quark/rhi/shader/shader_stage_desc.hpp"
 #include "quark/vk/pipeline/vertex_layout.hpp"
 
 #include <cstdint>
@@ -46,7 +46,7 @@ struct MultisampleStateDesc {
 };
 
 struct GraphicsPipelineDesc {
-  std::span<const ShaderStageDesc> stages;
+  std::span<const rhi::ShaderStageDesc> stages;
 
   VertexLayoutDesc vertex_layout{};
   VkPrimitiveTopology topology{VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST};
@@ -60,7 +60,7 @@ struct GraphicsPipelineDesc {
 
   std::span<const VkDynamicState> dynamic_states;
 
-  const PipelineLayout *pipeline_layout{nullptr};
+  const rhi::PipelineLayout *pipeline_layout{nullptr};
 
   // Probably shouldn't default initialize to anything
   PipelineRenderBackend backend{PipelineRenderBackend::DynamicRendering};

@@ -1,4 +1,6 @@
-#include "quark/platform/shader/details/shader_registry.hpp"
+#include "quark/rhi/shader/details/shader_registry.hpp"
+#include "quark/rhi/shader/shader_stage.hpp"
+#include "quark/rhi/shader/shader_stage_desc.hpp"
 #include "quark/utils/diagnostic.hpp"
 #include "quark/utils/error_types.hpp"
 #include "quark/utils/result.hpp"
@@ -6,6 +8,7 @@
 #include "quark/vk/pipeline/graphics_pipeline_desc.hpp"
 #include "quark/vk/pipeline/pipeline_limits.hpp"
 #include "quark/vk/pipeline/vertex_layout.hpp"
+#include "quark/vk/rhi_translation.hpp"
 #include <quark/vk/diagnostic_prelude.hpp>
 #include <quark/vk/pipeline/details/pipeline.hpp>
 #include <vulkan/vulkan_core.h>
@@ -106,9 +109,9 @@ validate_graphics_create_info(const Pipeline::GraphicsCreateInfo &ci) {
 }
 
 util::Status build_scratch(VkDevice device, const GraphicsPipelineDesc &desc,
-                           const ShaderRegistry &shaders,
+                           const rhi::details::ShaderRegistry &shaders,
                            PipelineScratch &scratch) {
-  for (const ShaderStageDesc &stage_desc : desc.stages) {
+  for (const rhi::ShaderStageDesc &stage_desc : desc.stages) {
     QUARK_ENSURE(shaders.alive(stage_desc.shader),
                  QUARK_ERR(util::Errc::InvalidArg,
                            "graphics pipeline shader module is null"));
@@ -131,7 +134,8 @@ util::Status build_scratch(VkDevice device, const GraphicsPipelineDesc &desc,
 
     VkPipelineShaderStageCreateInfo stage{};
     stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    stage.stage = stage_desc.stage;
+    stage.stage = static_cast<VkShaderStageFlagBits>(to_vk_shader_stages(
+        static_cast<rhi::ShaderStageFlags>(stage_desc.stage)));
     stage.module = module;
     stage.pName = stage_desc.entry_point;
 

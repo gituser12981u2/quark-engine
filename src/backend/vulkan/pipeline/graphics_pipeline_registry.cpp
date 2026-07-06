@@ -1,12 +1,14 @@
-#include "quark/vk/pipeline/details/graphics_pipeline_registry.hpp"
+#include "quark/rhi/pipeline/pipeline_layout.hpp"
 #include "quark/utils/diagnostic.hpp"
 #include "quark/utils/error_types.hpp"
 #include "quark/utils/result.hpp"
+
 #include "quark/vk/device/device_view.hpp"
 #include "quark/vk/pipeline/details/graphics_pipeline_handle.hpp"
+#include "quark/vk/pipeline/details/graphics_pipeline_registry.hpp"
 #include "quark/vk/pipeline/details/pipeline.hpp"
 #include "quark/vk/pipeline/graphics_pipeline_desc.hpp"
-#include "quark/vk/pipeline/pipeline_layout.hpp"
+
 #include <cstdint>
 #include <utility>
 #include <vulkan/vulkan_core.h>
@@ -105,7 +107,7 @@ const Pipeline *GraphicsPipelineRegistry::pipeline(
   return slot == nullptr ? nullptr : &slot->pipeline;
 }
 
-const quark::vk::PipelineLayout *
+const rhi::PipelineLayout *
 GraphicsPipelineRegistry::layout(GraphicsPipelineHandle handle) const noexcept {
   const GraphicsPipelineSlot *slot = slot_if_live_(handle);
   return slot == nullptr ? nullptr : slot->layout;

@@ -1,14 +1,15 @@
+#include "quark/rhi/shader/shader_file.hpp"
+#include "quark/utils/diagnostic.hpp"
+#include "quark/utils/error_types.hpp"
+#include "quark/utils/result.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <fstream>
 #include <ios>
-#include <quark/platform/shader/shader_file.hpp>
-#include <quark/utils/diagnostic.hpp>
-#include <quark/utils/error_types.hpp>
-#include <quark/utils/result.hpp>
 #include <vector>
 
-namespace quark::vk {
+namespace quark::rhi {
 
 // TODO: Cache by path
 util::Result<std::vector<uint32_t>>
@@ -35,4 +36,4 @@ read_spv_file(const std::filesystem::path &path) {
   return code;
 }
 
-} // namespace quark::vk
+} // namespace quark::rhi

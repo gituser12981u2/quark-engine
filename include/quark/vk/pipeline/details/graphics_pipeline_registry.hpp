@@ -1,20 +1,33 @@
 #pragma once
 
 #include "quark/engine/registry/registry_base.hpp"
+#include "quark/rhi/pipeline/pipeline_layout.hpp"
 #include "quark/utils/raii.hpp"
 #include "quark/utils/result.hpp"
+
 #include "quark/vk/device/device_view.hpp"
 #include "quark/vk/pipeline/details/graphics_pipeline_handle.hpp"
 #include "quark/vk/pipeline/details/pipeline.hpp"
+
 #include <cstdint>
 #include <vulkan/vulkan_core.h>
 
-namespace quark::vk {
+namespace quark {
 
-struct GraphicsPipelineDesc;
-class ShaderRegistry;
+namespace engine {
 class RetirementQueue;
+}
+
+namespace rhi {
 class PipelineLayout;
+
+namespace details {
+class ShaderRegistry;
+}
+} // namespace rhi
+
+namespace vk {
+struct GraphicsPipelineDesc;
 
 namespace details {
 
@@ -23,7 +36,7 @@ struct GraphicsPipelineSlot {
   uint32_t generation{1};
 
   Pipeline pipeline;
-  const quark::vk::PipelineLayout *layout{nullptr};
+  const rhi::PipelineLayout *layout{nullptr};
 };
 
 struct RetiredGraphicsPipeline {
@@ -52,8 +65,8 @@ private:
 public:
   struct CreateInfo {
     DeviceView device{};
-    const ShaderRegistry *shaders{nullptr};
-    RetirementQueue *retire_queue{nullptr};
+    const rhi::details::ShaderRegistry *shaders{nullptr};
+    engine::RetirementQueue *retire_queue{nullptr};
     const VkAllocationCallbacks *allocator{nullptr};
   };
 
@@ -81,15 +94,17 @@ public:
 
   [[nodiscard]] const Pipeline *
   pipeline(GraphicsPipelineHandle handle) const noexcept;
-  [[nodiscard]] const quark::vk::PipelineLayout *
+  [[nodiscard]] const rhi::PipelineLayout *
   layout(GraphicsPipelineHandle handle) const noexcept;
 
 private:
   DeviceView device_{};
-  const ShaderRegistry *shaders_{nullptr};
+  const rhi::details::ShaderRegistry *shaders_{nullptr};
   const VkAllocationCallbacks *allocator_{nullptr};
 };
 
 } // namespace details
 
-} // namespace quark::vk
+} // namespace vk
+
+} // namespace quark

@@ -1,6 +1,7 @@
-#include "quark/platform/shader/details/shader_registry.hpp"
-#include "quark/platform/shader/shader_file.hpp"
-#include "quark/platform/shader/shader_handle.hpp"
+#include "quark/rhi/shader/details/shader_registry.hpp"
+#include "quark/rhi/shader/details/shader_handle.hpp"
+#include "quark/rhi/shader/shader_file.hpp"
+
 #include "quark/utils/diagnostic.hpp"
 #include "quark/utils/error_types.hpp"
 #include "quark/utils/result.hpp"
@@ -13,7 +14,7 @@
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
-namespace quark::vk {
+namespace quark::rhi::details {
 
 util::Status ShaderRegistry::create(const CreateInfo &ci) {
   QUARK_ENSURE(
@@ -49,25 +50,14 @@ ShaderRegistry::code(ShaderHandle handle) const noexcept {
   return slots_[handle.index].code;
 }
 
-VkShaderStageFlagBits
-ShaderRegistry::stage(ShaderHandle handle) const noexcept {
-  if (!alive(handle)) {
-    return {};
-  }
-
-  return slots_[handle.index].stage;
-}
-
 util::Result<ShaderHandle>
-ShaderRegistry::load_spv_file(const std::filesystem::path &path,
-                              VkShaderStageFlagBits stage) {
+ShaderRegistry::load_spv_file(const std::filesystem::path &path) {
   std::vector<uint32_t> code;
   QUARK_TRY_ASSIGN(code, read_spv_file(path));
 
   ShaderHandle handle = allocate_handle_();
   Slot &slot = slots_[handle.index];
 
-  slot.stage = stage;
   slot.code = std::move(code);
   slot.path = path;
   slot.live = true;
@@ -93,4 +83,4 @@ ShaderHandle ShaderRegistry::allocate_handle_() {
   };
 }
 
-} // namespace quark::vk
+} // namespace quark::rhi::details

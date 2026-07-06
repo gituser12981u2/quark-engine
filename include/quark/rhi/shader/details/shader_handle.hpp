@@ -2,9 +2,9 @@
 
 #include "quark/engine/handle/opaque_handle.hpp"
 
-namespace quark::vk {
+namespace quark::rhi::details {
 
 struct ShaderTag;
 using ShaderHandle = engine::GenericHandle<ShaderTag>;
 
-} // namespace quark::vk
+} // namespace quark::rhi::details

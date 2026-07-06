@@ -1,6 +1,6 @@
 #pragma once
 
-#include "quark/platform/shader/shader_handle.hpp"
+#include "quark/rhi/shader/details/shader_handle.hpp"
 #include "quark/rhi/shader/shader_stage.hpp"
 
 namespace quark::rhi {
@@ -18,7 +18,7 @@ namespace quark::rhi {
  */
 struct ShaderStageDesc {
   /// Shader asset used by this stage.
-  ShaderHandle shader{};
+  details::ShaderHandle shader{};
 
   /// Pipeline stage the shader participates in.
   rhi::ShaderStage stage{};

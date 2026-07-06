@@ -243,7 +243,7 @@ protected:
     Policy::move_slot_to_retired_payload(*slot, *payload);
     retire_slot_metadata_(handle, *slot);
 
-    ::quark::vk::RetirementQueue::Task task{};
+    ::quark::engine::RetirementQueue::Task task{};
     task.fn = &Policy::destroy_retired_payload;
     task.cleanup = &Policy::cleanup_retired_payload;
     task.ctx = payload;
@@ -291,7 +291,7 @@ protected:
 
   // TODO: make RetirementQueue not vk specific
   /// Non-owning retirement queue used to schedule deferred payload destruction.
-  vk::RetirementQueue *retire_queue_ = nullptr;
+  RetirementQueue *retire_queue_ = nullptr;
 
   /// Slot storage owned by the registry.
   std::vector<Slot> slots_;

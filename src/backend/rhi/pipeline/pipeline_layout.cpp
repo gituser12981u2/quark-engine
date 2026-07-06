@@ -1,10 +1,11 @@
-#include "quark/vk/pipeline/pipeline_layout.hpp"
+#include "quark/rhi/pipeline/pipeline_layout.hpp"
 #include "quark/utils/diagnostic.hpp"
 #include "quark/utils/error_types.hpp"
 #include "quark/utils/result.hpp"
-#include <vulkan/vulkan_core.h>
 
-namespace quark::vk {
+#include "quark/vk/pipeline/pipeline_layout_backend.hpp"
+
+namespace quark::rhi {
 
 util::Status PipelineLayout::create(const CreateInfo &ci) {
   QUARK_ENSURE(ci.desc != nullptr, QUARK_ERR(util::Errc::InvalidArg,
@@ -13,17 +14,16 @@ util::Status PipelineLayout::create(const CreateInfo &ci) {
   destroy();
 
   QUARK_TRY_STATUS(registry_.create({
-      .device = ci.device,
-      .descriptor_set_layouts = ci.descriptor_set_layouts,
       .retire_queue = ci.retire_queue,
-      .allocator = ci.allocator,
   }));
 
-  QUARK_TRY_ASSIGN(handle_,
-                   registry_.create_layout({
-                       .set_layouts = ci.desc->descriptor_set_layouts,
-                       .push_constant_ranges = ci.desc->push_constant_ranges,
-                   }));
+  // TODO: remove this pattern
+  const vk::PipelineLayoutBackend::CreateInfo backend_ci{
+      .device = ci.device,
+      .desc = ci.desc,
+  };
+
+  QUARK_TRY_ASSIGN(handle_, registry_.create_backend(backend_ci));
 
   backend_ = registry_.backend(handle_);
 
@@ -36,4 +36,4 @@ void PipelineLayout::destroy() noexcept {
   backend_ = nullptr;
 }
 
-} // namespace quark::vk
+} // namespace quark::rhi
