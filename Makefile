@@ -4,10 +4,26 @@ CMAKE ?= cmake
 
 ifeq ($(OS),Windows_NT)
 	HOST_OS := Windows
-	HOST_ARCH := x86_64
+	HOST_ARCH := $(if $(PROCESSOR_ARCHITEW6432),$(PROCESSOR_ARCHITEW6432),$(PROCESSOR_ARCHITECTURE))
 else
 	HOST_OS := $(shell uname -s 2>/dev/null)
 	HOST_ARCH := $(shell uname -m 2>/dev/null)
+endif
+
+ifeq ($(HOST_ARCH),x86_64)
+	NORMALISED_HOST_ARCH := x64
+else ifeq ($(HOST_ARCH),AMD64)
+	NORMALISED_HOST_ARCH := x64
+else ifeq ($(HOST_ARCH),amd64)
+	NORMALISED_HOST_ARCH := x64
+else ifeq ($(HOST_ARCH),arm64)
+	NORMALISED_HOST_ARCH := arm64
+else ifeq ($(HOST_ARCH),aarch64)
+	NORMALISED_HOST_ARCH := arm64
+else ifeq ($(HOST_ARCH),ARM64)
+	NORMALISED_HOST_ARCH := arm64
+else
+	$(error Unsupported host arch '$(HOST_ARCH)')
 endif
 
 ifeq ($(CONFIG),debug)
@@ -31,7 +47,7 @@ else
 endif
 
 ifeq ($(HEADLESS),ON)
-	HEADLESS_SUFFIX := -headless 
+	HEADLESS_SUFFIX := -headless
 else ifeq ($(HEADLESS),OFF)
 	HEADLESS_SUFFIX :=
 else
@@ -39,9 +55,9 @@ else
 endif
 
 ifeq ($(HOST_OS),Darwin)
-	ifeq ($(HOST_ARCH),arm64)
+	ifeq ($(NORMALISED_HOST_ARCH),arm64)
     CMAKE_CONFIGURE_PRESET := macos-arm64-$(SUFFIX)
-	else ifeq ($(HOST_ARCH),x86_64)
+	else ifeq ($(NORMALISED_HOST_ARCH),x64)
     CMAKE_CONFIGURE_PRESET := macos-x64-$(SUFFIX)
   else
 		$(error Unsupported macOS arch '$(HOST_ARCH)')
@@ -52,47 +68,47 @@ else ifeq ($(HOST_OS),Linux)
   ifndef LINUX_TOOLCHAIN
     LINUX_TOOLCHAIN := gcc
   endif
-  CMAKE_CONFIGURE_PRESET := linux-x64-$(LINUX_TOOLCHAIN)-$(SUFFIX)
+	CMAKE_CONFIGURE_PRESET := linux-$(NORMALISED_HOST_ARCH)-$(LINUX_TOOLCHAIN)-$(SUFFIX)
   BUILD_DIR := build/$(CMAKE_CONFIGURE_PRESET)$(HEADLESS_SUFFIX)
 
 else
 	# Windows (native, Git Bash/MSYS, or Cygwin)
 	ifneq (,$(findstring MINGW,$(HOST_OS)))
-    CMAKE_CONFIGURE_PRESET := windows-x64-msvc-$(SUFFIX)
+		CMAKE_CONFIGURE_PRESET := windows-$(NORMALISED_HOST_ARCH)-msvc-$(SUFFIX)
     BUILD_DIR := build/$(CMAKE_CONFIGURE_PRESET)$(HEADLESS_SUFFIX)
 	else ifneq (,$(findstring MSYS,$(HOST_OS)))
-    CMAKE_CONFIGURE_PRESET := windows-x64-msvc-$(SUFFIX)
+		CMAKE_CONFIGURE_PRESET := windows-$(NORMALISED_HOST_ARCH)-msvc-$(SUFFIX)
     BUILD_DIR := build/$(CMAKE_CONFIGURE_PRESET)$(HEADLESS_SUFFIX)
 	else ifneq (,$(findstring CYGWIN,$(HOST_OS)))
-    CMAKE_CONFIGURE_PRESET := windows-x64-msvc-$(SUFFIX)
+		CMAKE_CONFIGURE_PRESET := windows-$(NORMALISED_HOST_ARCH)-msvc-$(SUFFIX)
     BUILD_DIR := build/$(CMAKE_CONFIGURE_PRESET)$(HEADLESS_SUFFIX)
   else
-    CMAKE_CONFIGURE_PRESET := windows-x64-msvc-$(SUFFIX)
+		CMAKE_CONFIGURE_PRESET := windows-$(NORMALISED_HOST_ARCH)-msvc-$(SUFFIX)
     BUILD_DIR := build/$(CMAKE_CONFIGURE_PRESET)$(HEADLESS_SUFFIX)
   endif
 
   ifeq ($(SUFFIX),asan-ubsan)
-    $(error CONFIG=asan-ubsan is not supported for windows-x64-msvc presets)
+		$(error CONFIG=asan-ubsan is not supported for windows-msvc presets)
   endif
   ifeq ($(SUFFIX),tsan)
-    $(error CONFIG=tsan is not supported for windows-x64-msvc presets)
+		$(error CONFIG=tsan is not supported for windows-msvc presets)
   endif
 endif
 
 # Derive the vcpkg triplet from platform to match CMakePresets.json
 ifeq ($(HOST_OS),Darwin)
-	ifeq ($(HOST_ARCH),arm64)
+	ifeq ($(NORMALISED_HOST_ARCH),arm64)
     VCPKG_TRIPLET := arm64-osx
-	else ifeq ($(HOST_ARCH),x86_64)
+	else ifeq ($(NORMALISED_HOST_ARCH),x64)
     VCPKG_TRIPLET := x64-osx
   else
 		$(error Unsupported macOS arch '$(HOST_ARCH)')
   endif
 else ifeq ($(HOST_OS),Linux)
-  VCPKG_TRIPLET := x64-linux
+	VCPKG_TRIPLET := $(NORMALISED_HOST_ARCH)-linux
 else
-  # Windows/MSYS/Git Bash/Cygwin (probably)
-  VCPKG_TRIPLET := x64-windows
+	# Windows/MSYS/Git Bash/Cygwin (probably)
+	VCPKG_TRIPLET := $(NORMALISED_HOST_ARCH)-windows
 endif
 
 ifeq ($(OS),Windows_NT)
