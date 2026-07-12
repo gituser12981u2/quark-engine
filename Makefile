@@ -1,8 +1,14 @@
 CONFIG ?= debug
 HEADLESS ?= OFF
+CMAKE ?= cmake
 
-UNAME_S := $(shell uname -s 2>/dev/null)
-UNAME_M := $(shell uname -m 2>/dev/null)
+ifeq ($(OS),Windows_NT)
+	HOST_OS := Windows
+	HOST_ARCH := x86_64
+else
+	HOST_OS := $(shell uname -s 2>/dev/null)
+	HOST_ARCH := $(shell uname -m 2>/dev/null)
+endif
 
 ifeq ($(CONFIG),debug)
   SUFFIX := debug
@@ -26,23 +32,23 @@ endif
 
 ifeq ($(HEADLESS),ON)
 	HEADLESS_SUFFIX := -headless 
-else ifeq($(HEADLESS),OFF)
+else ifeq ($(HEADLESS),OFF)
 	HEADLESS_SUFFIX :=
 else
 	$(error Unknown HEADLESS '$(HEADLESS)'. Use ON or OFF)
 endif
 
-ifeq ($(UNAME_S),Darwin)
-  ifeq ($(UNAME_M),arm64)
+ifeq ($(HOST_OS),Darwin)
+	ifeq ($(HOST_ARCH),arm64)
     CMAKE_CONFIGURE_PRESET := macos-arm64-$(SUFFIX)
-  else ifeq ($(UNAME_M),x86_64)
+	else ifeq ($(HOST_ARCH),x86_64)
     CMAKE_CONFIGURE_PRESET := macos-x64-$(SUFFIX)
   else
-    $(error Unsupported macOS arch '$(UNAME_M)')
+		$(error Unsupported macOS arch '$(HOST_ARCH)')
   endif
   BUILD_DIR := build/$(CMAKE_CONFIGURE_PRESET)$(HEADLESS_SUFFIX)
 
-else ifeq ($(UNAME_S),Linux)
+else ifeq ($(HOST_OS),Linux)
   ifndef LINUX_TOOLCHAIN
     LINUX_TOOLCHAIN := gcc
   endif
@@ -50,19 +56,17 @@ else ifeq ($(UNAME_S),Linux)
   BUILD_DIR := build/$(CMAKE_CONFIGURE_PRESET)$(HEADLESS_SUFFIX)
 
 else
-  # Windows (i.e. Git Bash/MSYS) often reports uname -s like MINGW64_NT-*
-  # For native Windows usage, recommend running from a shell where `cmake` works.
-  ifneq (,$(findstring MINGW,$(UNAME_S)))
+	# Windows (native, Git Bash/MSYS, or Cygwin)
+	ifneq (,$(findstring MINGW,$(HOST_OS)))
     CMAKE_CONFIGURE_PRESET := windows-x64-msvc-$(SUFFIX)
     BUILD_DIR := build/$(CMAKE_CONFIGURE_PRESET)$(HEADLESS_SUFFIX)
-  else ifneq (,$(findstring MSYS,$(UNAME_S)))
+	else ifneq (,$(findstring MSYS,$(HOST_OS)))
     CMAKE_CONFIGURE_PRESET := windows-x64-msvc-$(SUFFIX)
     BUILD_DIR := build/$(CMAKE_CONFIGURE_PRESET)$(HEADLESS_SUFFIX)
-  else ifneq (,$(findstring CYGWIN,$(UNAME_S)))
+	else ifneq (,$(findstring CYGWIN,$(HOST_OS)))
     CMAKE_CONFIGURE_PRESET := windows-x64-msvc-$(SUFFIX)
     BUILD_DIR := build/$(CMAKE_CONFIGURE_PRESET)$(HEADLESS_SUFFIX)
   else
-    # If uname isn't available, assume Windows.
     CMAKE_CONFIGURE_PRESET := windows-x64-msvc-$(SUFFIX)
     BUILD_DIR := build/$(CMAKE_CONFIGURE_PRESET)$(HEADLESS_SUFFIX)
   endif
@@ -76,19 +80,25 @@ else
 endif
 
 # Derive the vcpkg triplet from platform to match CMakePresets.json
-ifeq ($(UNAME_S),Darwin)
-  ifeq ($(UNAME_M),arm64)
+ifeq ($(HOST_OS),Darwin)
+	ifeq ($(HOST_ARCH),arm64)
     VCPKG_TRIPLET := arm64-osx
-  else ifeq ($(UNAME_M),x86_64)
+	else ifeq ($(HOST_ARCH),x86_64)
     VCPKG_TRIPLET := x64-osx
   else
-    $(error Unsupported macOS arch '$(UNAME_M)')
+		$(error Unsupported macOS arch '$(HOST_ARCH)')
   endif
-else ifeq ($(UNAME_S),Linux)
+else ifeq ($(HOST_OS),Linux)
   VCPKG_TRIPLET := x64-linux
 else
   # Windows/MSYS/Git Bash/Cygwin (probably)
   VCPKG_TRIPLET := x64-windows
+endif
+
+ifeq ($(OS),Windows_NT)
+	VCPKG_CMD := vcpkg/vcpkg.exe
+else
+	VCPKG_CMD := ./vcpkg/vcpkg
 endif
 
 
@@ -152,20 +162,19 @@ deps:
 	fi
 
 vcpkg-install: deps
-	./vcpkg/vcpkg install --triplet $(VCPKG_TRIPLET)
+	$(VCPKG_CMD) install --triplet $(VCPKG_TRIPLET)
 
 configure:
-	cmake --preset $(CMAKE_CONFIGURE_PRESET) \
+	$(CMAKE) --preset $(CMAKE_CONFIGURE_PRESET) \
 		-DQUARK_HEADLESS=$(HEADLESS) \
 		-DVCPKG_MANIFEST_FEATURES=window
-		-B $(BUILD_DIR)
-	./scripts/sync_compile_commands.sh $(BUILD_DIR)
+	$(CMAKE) -E copy_if_different $(BUILD_DIR)/compile_commands.json compile_commands.json
 
 build: configure
-	cmake --build $(BUILD_DIR)
+	$(CMAKE) --build $(BUILD_DIR)
 
 run: build
-	cmake --build $(BUILD_DIR) --target run
+	$(CMAKE) --build $(BUILD_DIR) --target run
 
 clean:
-	rm -rf build
+	$(CMAKE) -E rm -rf build compile_commands.json

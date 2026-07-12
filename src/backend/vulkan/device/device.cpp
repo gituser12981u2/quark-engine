@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <cstring>
 #include <fmt/format.h>
+#include <optional>
 #include <quark/vk/device/details/device.hpp>
 #include <quark/vk/device/details/device_feature_chain_builder.hpp>
 #include <quark/vk/diagnostic_prelude.hpp>
@@ -295,7 +296,7 @@ Device::find_graphics_queue_family_or_error_(VkPhysicalDevice physical_device) {
   vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_family_count,
                                            queue_families.data());
 
-  for (auto index{0UZ}; index < queue_family_count; ++index) {
+  for (uint32_t index{0}; index < queue_family_count; ++index) {
     if ((queue_families[index].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0U) {
       return index;
     }
@@ -317,7 +318,7 @@ Device::find_present_queue_family_or_error_(VkPhysicalDevice physical_device,
   vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_family_count,
                                            /*pQueueFamilyProperties=*/nullptr);
 
-  for (auto index{0UZ}; index < queue_family_count; ++index) {
+  for (uint32_t index{0}; index < queue_family_count; ++index) {
     VkBool32 present_supported = VK_FALSE;
     vkGetPhysicalDeviceSurfaceSupportKHR(physical_device, index, surface,
                                          &present_supported);
