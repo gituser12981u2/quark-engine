@@ -1,5 +1,7 @@
 #pragma once
 
+#include "quark/vk/renderer.hpp"
+
 #include <array>
 #include <cstdint>
 
@@ -102,8 +104,10 @@ private:
 
   vector<uint64_t> images_in_flight_;
   vector<bool> swapchain_images_initialized_;
-  uint32_t current_frame_{0};
+  uint32_t current_frame_{};
 #endif
+
+  Renderer renderer_;
 };
 
 } // namespace quark::vk

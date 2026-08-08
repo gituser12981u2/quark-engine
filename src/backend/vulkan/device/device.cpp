@@ -91,10 +91,29 @@ util::Status Device::create(const Device::CreateInfo &ci) {
     present_queue_family_index_ = graphics_queue_family_index_;
   }
 
+  util::Status allocator_status = allocator_.create({
+      .instance = ci.instance,
+      .device =
+          {
+              .physical_device = physical_device_,
+              .device = device_,
+          },
+      .allocation_callbacks = alloc_,
+      .vulkan_api_version = capabilities_.api_version,
+  });
+  if (!allocator_status) {
+    destroy();
+    // return std::move(allocator_status); // uncomment this line to see a nice
+    // lint.
+    return allocator_status;
+  }
+
   QUARK_OK();
 }
 
 void Device::destroy() noexcept {
+  allocator_.destroy();
+
   if (device_ != VK_NULL_HANDLE) {
     vkDestroyDevice(device_, nullptr);
     device_ = VK_NULL_HANDLE;

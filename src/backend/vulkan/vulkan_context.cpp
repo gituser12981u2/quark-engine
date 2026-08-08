@@ -1,14 +1,8 @@
 #include "vulkan_context.hpp"
 
-// TODO: move test to testing system when possible
-#include "quark/engine/retire/retirement_queue.hpp"
-#include "quark/utils/diagnostic.hpp"
-#include "quark/utils/error_types.hpp"
-
 #include <algorithm>
 #include <array>
 #include <bit>
-#include <cstddef>
 #include <cstdint>
 #include <cstring>
 
@@ -20,8 +14,13 @@
 #include <quark/platform/window/interface_query.hpp>
 #endif
 
+#include <quark/engine/retire/retirement_queue.hpp>
+#include <quark/platform/shader/shader_handle.hpp>
 #include <quark/vk/diagnostic_prelude.hpp>
 #include <quark/vk/instance/instance_bundle.hpp>
+#include <quark/vk/pipeline/graphics_pipeline_desc.hpp>
+#include <quark/vk/pipeline/shader_stage_desc.hpp>
+#include <quark/vk/pipeline/vertex_layout.hpp>
 #include <quark/vk/surface_source.hpp>
 #include <quark/vk/sync/gpu_timeline.hpp>
 #include <string_view>
@@ -35,8 +34,8 @@ using std::vector;
 namespace {
 
 struct RetireTestPayload {
-  uint64_t id = 0;
-  uint64_t retire_at = 0;
+  uint64_t id{};
+  uint64_t retire_at{};
 };
 
 void retire_test_run(void *ctx) noexcept {
@@ -106,8 +105,8 @@ constexpr array<const char *, 1> kValidationLayers{
     "VK_LAYER_KHRONOS_validation",
 };
 
-auto api_version_at_least(uint32_t version, uint32_t major, uint32_t minor)
-    -> bool {
+constexpr auto api_version_at_least(uint32_t version, uint32_t major,
+                                    uint32_t minor) -> bool {
   if (VK_VERSION_MAJOR(version) != major) {
     return VK_VERSION_MAJOR(version) > major;
   }
@@ -133,7 +132,7 @@ auto choose_instance_api_version() -> uint32_t {
 }
 
 auto check_validation_layer_support() -> bool {
-  uint32_t layer_count{0};
+  uint32_t layer_count{};
   vkEnumerateInstanceLayerProperties(&layer_count, nullptr);
 
   vector<VkLayerProperties> available_layers(layer_count);
@@ -214,6 +213,18 @@ util::Status VulkanContext::init() {
 
   QUARK_TRY_STATUS(create_render_pass());
   QUARK_TRY_STATUS(create_framebuffers());
+
+  QUARK_TRY_STATUS(renderer_.create({
+      .device = device_.view(),
+      .allocator = &device_.allocator(),
+      .retire_queue = &retirement_queue_,
+      .extent = presenter_.swapchain().extent(),
+      .color_format = presenter_.swapchain().format(),
+      .backend = render_path_ == RenderPath::Vulkan13DynamicRendering
+                     ? PipelineRenderBackend::DynamicRendering
+                     : PipelineRenderBackend::RenderPass,
+      .render_pass = render_pass_,
+  }));
 #endif
 
   QUARK_OK();
@@ -224,6 +235,8 @@ VulkanContext::~VulkanContext() {
     VkDevice device = device_.vk_device();
     vkDeviceWaitIdle(device);
   }
+
+  renderer_.destroy();
 
   frame_.destroy();
   retirement_queue_.destroy();
@@ -353,7 +366,7 @@ util::Status VulkanContext::create_instance() {
 #if !QUARK_HEADLESS
 
 void VulkanContext::create_window() {
-  auto window = std::make_unique<platform::GlfwWindow>();
+  window_ = std::make_unique<platform::GlfwWindow>();
 
   platform::IWindow::CreateInfo ci{};
   ci.width = kWindowWidth;
@@ -361,8 +374,7 @@ void VulkanContext::create_window() {
   ci.title = kWindowTitle.data();
   ci.resizable = true;
 
-  window->create(ci);
-  window_ = std::move(window);
+  window_->create(ci);
 }
 
 util::Status VulkanContext::create_presenter() {
@@ -521,6 +533,9 @@ util::Status VulkanContext::record_command_buffer(uint32_t image_index) {
     rendering_info.pColorAttachments = &color_attachment;
 
     cmd_begin_rendering_(cb, &rendering_info);
+
+    renderer_.draw(cb, presenter_.swapchain().extent());
+
     cmd_end_rendering_(cb);
 
     VkImageMemoryBarrier2 to_present{};
@@ -550,6 +565,7 @@ util::Status VulkanContext::record_command_buffer(uint32_t image_index) {
     render_pass_info.pClearValues = &clear_color;
 
     vkCmdBeginRenderPass(cb, &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
+    renderer_.draw(cb, presenter_.swapchain().extent());
     vkCmdEndRenderPass(cb);
   }
 
@@ -588,8 +604,8 @@ util::Status VulkanContext::submit_frame(VkCommandBuffer command_buffer,
     cb_info.commandBuffer = command_buffer;
     cb_info.deviceMask = 0;
 
-    const std::array<VkSemaphoreSubmitInfo, 2> signals = {signal_sem_bin,
-                                                          signal_sem_tl};
+    const array<VkSemaphoreSubmitInfo, 2> signals = {signal_sem_bin,
+                                                     signal_sem_tl};
 
     VkSubmitInfo2 submit_info{};
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
@@ -606,11 +622,11 @@ util::Status VulkanContext::submit_frame(VkCommandBuffer command_buffer,
     QUARK_OK();
   }
 
-  const VkPipelineStageFlags wait_stage =
+  constexpr VkPipelineStageFlags wait_stage =
       VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-  const std::array<VkSemaphore, 2> signal_semaphores = {
-      render_finished, gpu_timeline_.semaphore()};
-  const std::array<uint64_t, 2> signal_values = {0, signal_value};
+  const array<VkSemaphore, 2> signal_semaphores = {render_finished,
+                                                   gpu_timeline_.semaphore()};
+  const array<uint64_t, 2> signal_values = {0, signal_value};
 
   VkTimelineSemaphoreSubmitInfo timeline_info{};
   timeline_info.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
@@ -642,8 +658,8 @@ util::Status VulkanContext::draw_frame() {
   QUARK_FAIL(QUARK_ERR(util::Errc::Unsupported,
                        "draw_frame is unavailable in headless mode"));
 #endif
+  auto drained{0UZ};
 
-  std::size_t drained = 0;
   QUARK_TRY_ASSIGN(drained, retirement_queue_.drain());
   (void)drained;
 
@@ -654,7 +670,7 @@ util::Status VulkanContext::draw_frame() {
   QUARK_TRY_STATUS(gpu_timeline_.wait(frame_value));
 
   // Acquire image
-  uint32_t image_index = 0;
+  uint32_t image_index{};
   const VkResult acquire_result = vkAcquireNextImageKHR(
       device_.vk_device(), presenter_.swapchain().handle(), UINT64_MAX,
       view.sync->image_available(current_frame_), VK_NULL_HANDLE, &image_index);
@@ -680,12 +696,6 @@ util::Status VulkanContext::draw_frame() {
   QUARK_TRY_STATUS(submit_frame(cb, view.sync->image_available(current_frame_),
                                 view.sync->render_finished(current_frame_),
                                 signal_value));
-
-  // REMOVE TEST
-  // static uint64_t retire_test_id = 1;
-  // QUARK_TRY_STATUS(
-  //     enqueue_retire_test(retirement_queue_, signal_value,
-  //     retire_test_id++));
 
   view.sync->mark_submitted(current_frame_, signal_value);
   images_in_flight_[image_index] = signal_value;
@@ -735,8 +745,8 @@ void VulkanContext::cleanup_swapchain() {
 }
 
 util::Status VulkanContext::recreate_swapchain() {
-  int width{0};
-  int height{0};
+  int width{};
+  int height{};
   while (width == 0 || height == 0) {
     window_->framebuffer_size(width, height);
     window_->wait_events();

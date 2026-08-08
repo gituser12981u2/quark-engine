@@ -18,6 +18,7 @@ if(NOT Vulkan_FOUND)
   )
 endif()
 
+find_package(VulkanMemoryAllocator CONFIG REQUIRED)
 find_package(tl-expected CONFIG REQUIRED)
 find_package(fmt CONFIG REQUIRED)
 find_package(spdlog CONFIG REQUIRED)

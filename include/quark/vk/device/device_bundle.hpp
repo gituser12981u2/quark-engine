@@ -2,6 +2,7 @@
 
 #include <quark/utils/raii.hpp>
 #include <quark/utils/result.hpp>
+#include <quark/vk/allocator.hpp>
 #include <quark/vk/device/details/device.hpp>
 #include <quark/vk/device/details/device_capabilities.hpp>
 #include <vulkan/vulkan_core.h>
@@ -35,6 +36,8 @@ public:
   [[nodiscard]] uint32_t graphics_queue_family_index() const noexcept;
   [[nodiscard]] uint32_t present_queue_family_index() const noexcept;
   [[nodiscard]] details::DeviceCapabilities capabilities() const noexcept;
+  [[nodiscard]] const Allocator &allocator() const noexcept;
+  [[nodiscard]] VmaAllocator vma_allocator() const noexcept;
 
 private:
   details::Device device_;

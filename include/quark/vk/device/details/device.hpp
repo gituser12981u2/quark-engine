@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <quark/utils/raii.hpp>
 #include <quark/utils/result.hpp>
+#include <quark/vk/allocator.hpp>
 #include <quark/vk/device/details/device_capabilities.hpp>
 #include <vector>
 #include <vulkan/vulkan_core.h>
@@ -64,6 +65,14 @@ public:
     return capabilities_;
   }
 
+  [[nodiscard]] const Allocator &allocator() const noexcept {
+    return allocator_;
+  }
+
+  [[nodiscard]] VmaAllocator vma_allocator() const noexcept {
+    return allocator_.handle();
+  }
+
 private:
   struct DeviceSelection {
     VkPhysicalDevice physical_device{VK_NULL_HANDLE};
@@ -101,6 +110,7 @@ private:
   uint32_t graphics_queue_family_index_ = 0;
   uint32_t present_queue_family_index_ = 0;
   const VkAllocationCallbacks *alloc_ = nullptr;
+  Allocator allocator_;
   DeviceCapabilities capabilities_{};
 };
 
