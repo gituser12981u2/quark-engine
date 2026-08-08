@@ -46,7 +46,7 @@ private:
 public:
   struct CreateInfo {
     DeviceView device{};
-    RetirementQueue *retire_queue = nullptr;
+    engine::RetirementQueue *retire_queue = nullptr;
 
     uint32_t frames_in_flight = 0;
     uint32_t cmd_buffer_count = 0;

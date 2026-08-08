@@ -221,15 +221,19 @@ protected:
    * return.
    *
    * @param handle Handle identifying the live slot to retire.
+   * @param retire_queue RetirementQueue from which to retire.
    * @param retire_at Retirement timeline values.
    */
-  void retire_live_slot_(Handle handle, uint64_t retire_at) noexcept {
-    if (retire_queue_ == nullptr) {
+  void retire_live_slot_(Handle handle, RetirementQueue *retire_queue,
+                         uint64_t retire_at) noexcept {
+    Slot *slot = slot_if_live_(handle);
+    if (slot == nullptr) {
       return;
     }
 
-    Slot *slot = slot_if_live_(handle);
-    if (slot == nullptr) {
+    if (retire_queue == nullptr) {
+      Policy::destroy_slot_immediate(*slot);
+      retire_slot_metadata_(handle, *slot);
       return;
     }
 
@@ -243,13 +247,13 @@ protected:
     Policy::move_slot_to_retired_payload(*slot, *payload);
     retire_slot_metadata_(handle, *slot);
 
-    ::quark::vk::RetirementQueue::Task task{};
+    ::quark::engine::RetirementQueue::Task task{};
     task.fn = &Policy::destroy_retired_payload;
     task.cleanup = &Policy::cleanup_retired_payload;
     task.ctx = payload;
 
-    auto res = retire_queue_->enqueue(retire_at, task);
-    if (!res) {
+    auto result = retire_queue->enqueue(retire_at, task);
+    if (!result) {
       Policy::destroy_retired_payload(payload);
       Policy::cleanup_retired_payload(payload);
     }
@@ -274,7 +278,26 @@ protected:
 
     slots_.clear();
     free_.clear();
-    retire_queue_ = nullptr;
+  }
+
+  /**
+   * @brief Immediately destroys one live slot.
+   *
+   * If the handle is invalid, stale, or dead, this is a no-op.
+   *
+   * This does not enqueue retirement work. The slot is invalidated immediately,
+   * its generation is incremented, and its index is returned to the free list.
+   *
+   * @param handle Handle identifying the live slot to destroy.
+   */
+  void destroy_live_slot_immediate_(Handle handle) noexcept {
+    Slot *slot = slot_if_live_(handle);
+    if (slot == nullptr) {
+      return;
+    }
+
+    Policy::destroy_slot_immediate(*slot);
+    retire_slot_metadata_(handle, *slot);
   }
 
   /**
@@ -288,10 +311,6 @@ protected:
   [[nodiscard]] static bool matches_(Handle handle, const Slot &slot) noexcept {
     return handle.valid() && slot.live && slot.generation == handle.generation;
   }
-
-  // TODO: make RetirementQueue not vk specific
-  /// Non-owning retirement queue used to schedule deferred payload destruction.
-  vk::RetirementQueue *retire_queue_ = nullptr;
 
   /// Slot storage owned by the registry.
   std::vector<Slot> slots_;

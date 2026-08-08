@@ -1,9 +1,14 @@
-#include <array>
+#include "quark/rhi/pipeline/pipeline_layout.hpp"
+#include "quark/rhi/shader/shader_stage.hpp"
+#include <quark/rhi/shader/shader_stage_desc.hpp>
 
-#include <quark/utils/diagnostic.hpp>
-#include <quark/vk/pipeline/shader_stage_desc.hpp>
 #include <quark/vk/pipeline/vertex_layout.hpp>
 #include <quark/vk/triangle_renderer.hpp>
+
+#include <array>
+#include <quark/utils/diagnostic.hpp>
+
+#include <vulkan/vulkan_core.h>
 
 namespace quark::vk {
 
@@ -16,16 +21,16 @@ util::Status TriangleRenderer::create(const TriangleRenderer::CreateInfo &ci) {
 
   QUARK_TRY_STATUS(shader_registry_.create({.device = ci.device.device}));
 
-  ShaderHandle vert_shader{};
-  ShaderHandle frag_shader{};
+  rhi::details::ShaderHandle vert_shader{};
+  rhi::details::ShaderHandle frag_shader{};
 
-  QUARK_TRY_ASSIGN(vert_shader, shader_registry_.load_spv_file(
-                                    "src/backend/shaders/spv/triangle.vert.spv",
-                                    VK_SHADER_STAGE_VERTEX_BIT));
+  QUARK_TRY_ASSIGN(vert_shader,
+                   shader_registry_.load_spv_file(
+                       "src/backend/shaders/spv/triangle.vert.spv"));
 
-  QUARK_TRY_ASSIGN(frag_shader, shader_registry_.load_spv_file(
-                                    "src/backend/shaders/spv/triangle.frag.spv",
-                                    VK_SHADER_STAGE_FRAGMENT_BIT));
+  QUARK_TRY_ASSIGN(frag_shader,
+                   shader_registry_.load_spv_file(
+                       "src/backend/shaders/spv/triangle.frag.spv"));
 
   const auto bindings = Position2Color3Vertex::bindings();
   const auto attributes = Position2Color3Vertex::attributes();
@@ -34,15 +39,15 @@ util::Status TriangleRenderer::create(const TriangleRenderer::CreateInfo &ci) {
       .attributes = attributes,
   };
 
-  const std::array<ShaderStageDesc, 2> stages{
-      ShaderStageDesc{
+  const std::array<rhi::ShaderStageDesc, 2> stages{
+      rhi::ShaderStageDesc{
           .shader = vert_shader,
-          .stage = VK_SHADER_STAGE_VERTEX_BIT,
+          .stage = rhi::ShaderStage::Vertex,
           .entry_point = "main",
       },
-      ShaderStageDesc{
+      rhi::ShaderStageDesc{
           .shader = frag_shader,
-          .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+          .stage = rhi::ShaderStage::Fragment,
           .entry_point = "main",
       },
   };
@@ -51,6 +56,43 @@ util::Status TriangleRenderer::create(const TriangleRenderer::CreateInfo &ci) {
       ColorAttachmentDesc{
           .format = ci.color_format,
       }};
+
+  // const std::array<rhi::DescriptorBindingDesc, 1> camera_bindings{
+  //     rhi::DescriptorBindingDesc{
+  //         .binding = 0,
+  //         .type = rhi::DescriptorType::UniformBuffer,
+  //         .count = 1,
+  //         .stages =
+  //             static_cast<rhi::ShaderStageFlags>(rhi::ShaderStage::Vertex),
+  //     },
+  // };
+
+  // const rhi::DescriptorSetLayoutDesc camera_layout_desc{
+  //     .bindings = camera_bindings,
+  // };
+  //
+  // QUARK_TRY_STATUS(camera_set_layout_.create({
+  //     .device = ci.device,
+  //     .desc = camera_layout_desc,
+  //     .allocator = nullptr,
+  // }));
+
+  // const std::array<const DescriptorSetLayout *, 1> set_layouts{
+  //     &camera_set_layout_,
+  // };
+
+  const rhi::PipelineLayout::Desc pipeline_layout_desc{
+      .descriptor_set_layouts = {},
+      .push_constant_ranges = {},
+  };
+
+  QUARK_TRY_STATUS(pipeline_layout_.create({
+      .device = ci.device,
+      // .descriptor_set_layouts = nullptr,
+      .retire_queue = ci.retire_queue,
+      // .allocator = nullptr,
+      .desc = &pipeline_layout_desc,
+  }));
 
   const std::array<VkDynamicState, 2> dynamic_states{VK_DYNAMIC_STATE_VIEWPORT,
                                                      VK_DYNAMIC_STATE_SCISSOR};
@@ -64,15 +106,16 @@ util::Status TriangleRenderer::create(const TriangleRenderer::CreateInfo &ci) {
                                 .front_face = VK_FRONT_FACE_COUNTER_CLOCKWISE},
       .color_attachments = color_attachments,
       .dynamic_states = dynamic_states,
+      .pipeline_layout = &pipeline_layout_,
       .backend = ci.backend,
       .render_pass = ci.render_pass,
   };
 
   QUARK_TRY_STATUS(pipeline_.create({
       .device = ci.device,
+      .extent = ci.extent,
       .shaders = &shader_registry_,
       .retire_queue = ci.retire_queue,
-      .extent = ci.extent,
       .desc = &desc,
   }));
 
@@ -83,13 +126,14 @@ util::Status TriangleRenderer::create(const TriangleRenderer::CreateInfo &ci) {
 void TriangleRenderer::destroy() noexcept {
   vertex_buffer_.destroy();
   pipeline_.destroy();
+  pipeline_layout_.destroy();
   shader_registry_.destroy();
 }
 
 void TriangleRenderer::draw(VkCommandBuffer command_buffer,
                             VkExtent2D extent) const noexcept {
   vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                    pipeline_.pipeline());
+                    pipeline_.view().vk_pipeline());
 
   VkViewport viewport{};
   viewport.x = 0.0F;

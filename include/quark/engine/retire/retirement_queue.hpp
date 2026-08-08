@@ -9,7 +9,7 @@
 #include <quark/utils/result.hpp>
 #include <vector>
 
-namespace quark::vk {
+namespace quark::engine {
 
 /**
  * @brief CPU-side deferred destruction queue keyed by a GPU timeline value.
@@ -47,7 +47,7 @@ public:
   };
 
   struct CreateInfo {
-    const GpuTimeline *timeline = nullptr;
+    const vk::GpuTimeline *timeline = nullptr;
 
     /// Optional; pre-reserve capacity
     std::size_t reserve = 0;
@@ -112,11 +112,11 @@ private:
    */
   void compact_if_needed_() noexcept;
 
-  const GpuTimeline *timeline_ = nullptr; // non-owning
+  const vk::GpuTimeline *timeline_ = nullptr; // non-owning
 
   std::vector<Entry> entries_;
   std::size_t head_ = 0;
   uint64_t last_enqueued_retire_at_ = 0;
 };
 
-} // namespace quark::vk
+} // namespace quark::engine

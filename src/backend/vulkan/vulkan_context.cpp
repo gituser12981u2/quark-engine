@@ -15,11 +15,12 @@
 #endif
 
 #include <quark/engine/retire/retirement_queue.hpp>
-#include <quark/platform/shader/shader_handle.hpp>
+#include <quark/rhi/shader/details/shader_handle.hpp>
+#include <quark/rhi/shader/shader_stage_desc.hpp>
+
 #include <quark/vk/diagnostic_prelude.hpp>
 #include <quark/vk/instance/instance_bundle.hpp>
 #include <quark/vk/pipeline/graphics_pipeline_desc.hpp>
-#include <quark/vk/pipeline/shader_stage_desc.hpp>
 #include <quark/vk/pipeline/vertex_layout.hpp>
 #include <quark/vk/surface_source.hpp>
 #include <quark/vk/sync/gpu_timeline.hpp>
@@ -54,7 +55,7 @@ void retire_test_cleanup(void *ctx) noexcept {
 }
 
 [[maybe_unused]] util::Status
-enqueue_retire_test(quark::vk::RetirementQueue &queue, uint64_t retire_at,
+enqueue_retire_test(quark::engine::RetirementQueue &queue, uint64_t retire_at,
                     uint64_t id) {
   auto *payload = new (std::nothrow) RetireTestPayload{
       .id = id,
@@ -65,7 +66,7 @@ enqueue_retire_test(quark::vk::RetirementQueue &queue, uint64_t retire_at,
                QUARK_ERR(util::Errc::OutOfMemory,
                          "failed to allocate RetireTestPayload"));
 
-  quark::vk::RetirementQueue::Task task{};
+  quark::engine::RetirementQueue::Task task{};
   task.fn = &retire_test_run;
   task.cleanup = &retire_test_cleanup;
   task.ctx = payload;
@@ -802,7 +803,7 @@ util::Status VulkanContext::create_gpu_timeline() {
 }
 
 util::Status VulkanContext::create_retirement_queue() {
-  RetirementQueue::CreateInfo ci{};
+  engine::RetirementQueue::CreateInfo ci{};
   ci.timeline = &gpu_timeline_;
   ci.reserve = 256; // TODO: tune later
   QUARK_TRY_STATUS(retirement_queue_.create(ci));

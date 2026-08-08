@@ -1,10 +1,13 @@
-#include "quark/vk/pipeline/details/graphics_pipeline_registry.hpp"
+#include "quark/rhi/pipeline/pipeline_layout.hpp"
 #include "quark/utils/diagnostic.hpp"
 #include "quark/utils/error_types.hpp"
 #include "quark/utils/result.hpp"
+
 #include "quark/vk/device/device_view.hpp"
-#include "quark/vk/pipeline/details/graphics_pipeline.hpp"
 #include "quark/vk/pipeline/details/graphics_pipeline_handle.hpp"
+#include "quark/vk/pipeline/details/graphics_pipeline_registry.hpp"
+#include "quark/vk/pipeline/graphics_pipeline_desc.hpp"
+
 #include <cstdint>
 #include <utility>
 #include <vulkan/vulkan_core.h>
@@ -14,11 +17,13 @@ namespace quark::vk::details {
 void GraphicsPipelineRegistryPolicy::destroy_slot_immediate(
     GraphicsPipelineSlot &slot) noexcept {
   slot.pipeline.destroy();
+  slot.layout = {};
 }
 
 void GraphicsPipelineRegistryPolicy::move_slot_to_retired_payload(
     GraphicsPipelineSlot &slot, RetiredGraphicsPipeline &payload) noexcept {
   payload.pipeline = std::move(slot.pipeline);
+  slot.layout = {};
 }
 
 void GraphicsPipelineRegistryPolicy::destroy_retired_payload(
@@ -69,17 +74,23 @@ GraphicsPipelineRegistry::create_pipeline(const PipelineCreateInfo &ci) {
   QUARK_ENSURE(ci.desc != nullptr, QUARK_ERR(util::Errc::InvalidArg,
                                              "graphics pipeline desc is null"));
 
+  QUARK_ENSURE(ci.desc->pipeline_layout->valid(),
+               QUARK_ERR(util::Errc::InvalidArg,
+                         "graphics pipeline layout view is invalid"));
+
   auto pending = begin_create_();
 
-  GraphicsPipeline::CreateInfo pipeline_ci{
+  QUARK_TRY_STATUS(pending.slot().pipeline.create_graphics({
       .device = device_,
       .extent = ci.extent,
       .desc = ci.desc,
       .shaders = shaders_,
-      .allocator = allocator_,
-  };
+      .pipeline_layout = ci.desc->pipeline_layout,
+      .retire_queue = retire_queue_,
+      // .cache = VK_NULL_HANDLE,
+  }));
 
-  QUARK_TRY_STATUS(pending.slot().pipeline.create(pipeline_ci));
+  pending.slot().layout = ci.desc->pipeline_layout;
 
   return pending.commit();
 }
@@ -89,16 +100,16 @@ void GraphicsPipelineRegistry::destroy(GraphicsPipelineHandle handle,
   retire_live_slot_(handle, retire_at);
 }
 
-VkPipeline GraphicsPipelineRegistry::pipeline(
+const rhi::Pipeline *GraphicsPipelineRegistry::pipeline(
     GraphicsPipelineHandle handle) const noexcept {
   const GraphicsPipelineSlot *slot = slot_if_live_(handle);
-  return slot == nullptr ? VK_NULL_HANDLE : slot->pipeline.pipeline();
+  return slot == nullptr ? nullptr : &slot->pipeline;
 }
 
-VkPipelineLayout
+const rhi::PipelineLayout *
 GraphicsPipelineRegistry::layout(GraphicsPipelineHandle handle) const noexcept {
   const GraphicsPipelineSlot *slot = slot_if_live_(handle);
-  return slot == nullptr ? VK_NULL_HANDLE : slot->pipeline.layout();
+  return slot == nullptr ? nullptr : slot->layout;
 }
 
 } // namespace quark::vk::details

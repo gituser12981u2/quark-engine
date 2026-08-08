@@ -32,4 +32,7 @@ inline constexpr uint32_t kMaxColorAttachments = 8;
 /// creation.
 inline constexpr uint32_t kMaxDynamicStates = 16;
 
+inline constexpr uint32_t kMaxDescriptorSetLayouts = 8;
+inline constexpr uint32_t kMaxPushConstantRanges = 8;
+
 } // namespace quark::vk::pipeline_limits

@@ -90,7 +90,7 @@ private:
 
   FrameBundle frame_;
   GpuTimeline gpu_timeline_; // global timeline semaphore
-  RetirementQueue retirement_queue_;
+  engine::RetirementQueue retirement_queue_;
 
   RenderPath render_path_{RenderPath::Vulkan12Fallback};
   PFN_vkQueueSubmit2 queue_submit2_{nullptr};

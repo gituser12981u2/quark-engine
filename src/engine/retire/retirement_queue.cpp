@@ -5,7 +5,7 @@
 #include <quark/utils/diagnostic.hpp>
 #include <quark/vk/sync/gpu_timeline.hpp>
 
-namespace quark::vk {
+namespace quark::engine {
 
 util::Status RetirementQueue::create(const CreateInfo &ci) {
   destroy();
@@ -132,4 +132,4 @@ void RetirementQueue::compact_if_needed_() noexcept {
   }
 }
 
-} // namespace quark::vk
+} // namespace quark::engine
