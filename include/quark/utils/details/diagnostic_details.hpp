@@ -1,6 +1,7 @@
 #pragma once
 
 #include <quark/utils/diagnostic.hpp>
+#include <fmt/format.h>
 #include <source_location>
 #include <string_view>
 

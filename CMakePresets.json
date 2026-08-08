@@ -15,7 +15,6 @@
         "QUARK_ENABLE_LTO": "OFF"
       }
     },
-
     {
       "name": "macos-arm64",
       "hidden": true,
@@ -48,6 +47,17 @@
       }
     },
     {
+      "name": "linux-arm64-gcc",
+      "hidden": true,
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "gcc",
+        "CMAKE_CXX_COMPILER": "g++",
+        "VCPKG_TARGET_TRIPLET": "arm64-linux",
+        "VCPKG_HOST_TRIPLET": "arm64-linux"
+      }
+    },
+    {
       "name": "linux-x64-clang",
       "hidden": true,
       "inherits": "base",
@@ -59,6 +69,17 @@
       }
     },
     {
+      "name": "linux-arm64-clang",
+      "hidden": true,
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "VCPKG_TARGET_TRIPLET": "arm64-linux",
+        "VCPKG_HOST_TRIPLET": "arm64-linux"
+      }
+    },
+    {
       "name": "windows-x64-msvc",
       "hidden": true,
       "inherits": "base",
@@ -67,12 +88,22 @@
         "VCPKG_HOST_TRIPLET": "x64-windows"
       }
     },
-
+    {
+      "name": "windows-arm64-msvc",
+      "hidden": true,
+      "inherits": "base",
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "arm64-windows",
+        "VCPKG_HOST_TRIPLET": "arm64-windows"
+      }
+    },
     {
       "name": "macos-arm64-debug",
       "inherits": "macos-arm64",
       "binaryDir": "${sourceDir}/build/macos-arm64-debug",
-      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
     },
     {
       "name": "macos-x64-debug",
@@ -96,7 +127,9 @@
       "name": "macos-arm64-release",
       "inherits": "macos-arm64",
       "binaryDir": "${sourceDir}/build/macos-arm64-release",
-      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
     },
     {
       "name": "macos-arm64-release-lto",
@@ -107,17 +140,36 @@
         "QUARK_ENABLE_LTO": "ON"
       }
     },
-
     {
       "name": "linux-x64-gcc-debug",
       "inherits": "linux-x64-gcc",
       "binaryDir": "${sourceDir}/build/linux-x64-gcc-debug",
-      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "linux-arm64-gcc-debug",
+      "inherits": "linux-arm64-gcc",
+      "binaryDir": "${sourceDir}/build/linux-arm64-gcc-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
     },
     {
       "name": "linux-x64-gcc-asan-ubsan",
       "inherits": "linux-x64-gcc",
       "binaryDir": "${sourceDir}/build/linux-x64-gcc-asan-ubsan",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "QUARK_ENABLE_ASAN": "ON",
+        "QUARK_ENABLE_UBSAN": "ON"
+      }
+    },
+    {
+      "name": "linux-arm64-gcc-asan-ubsan",
+      "inherits": "linux-arm64-gcc",
+      "binaryDir": "${sourceDir}/build/linux-arm64-gcc-asan-ubsan",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
         "QUARK_ENABLE_ASAN": "ON",
@@ -134,10 +186,29 @@
       }
     },
     {
+      "name": "linux-arm64-gcc-tsan",
+      "inherits": "linux-arm64-gcc",
+      "binaryDir": "${sourceDir}/build/linux-arm64-gcc-tsan",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "QUARK_ENABLE_TSAN": "ON"
+      }
+    },
+    {
       "name": "linux-x64-gcc-release",
       "inherits": "linux-x64-gcc",
       "binaryDir": "${sourceDir}/build/linux-x64-gcc-release",
-      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "linux-arm64-gcc-release",
+      "inherits": "linux-arm64-gcc",
+      "binaryDir": "${sourceDir}/build/linux-arm64-gcc-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
     },
     {
       "name": "linux-x64-gcc-release-lto",
@@ -148,17 +219,45 @@
         "QUARK_ENABLE_LTO": "ON"
       }
     },
-
+    {
+      "name": "linux-arm64-gcc-release-lto",
+      "inherits": "linux-arm64-gcc",
+      "binaryDir": "${sourceDir}/build/linux-arm64-gcc-release-lto",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "QUARK_ENABLE_LTO": "ON"
+      }
+    },
     {
       "name": "linux-x64-clang-debug",
       "inherits": "linux-x64-clang",
       "binaryDir": "${sourceDir}/build/linux-x64-clang-debug",
-      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "linux-arm64-clang-debug",
+      "inherits": "linux-arm64-clang",
+      "binaryDir": "${sourceDir}/build/linux-arm64-clang-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
     },
     {
       "name": "linux-x64-clang-asan-ubsan",
       "inherits": "linux-x64-clang",
       "binaryDir": "${sourceDir}/build/linux-x64-clang-asan-ubsan",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "QUARK_ENABLE_ASAN": "ON",
+        "QUARK_ENABLE_UBSAN": "ON"
+      }
+    },
+    {
+      "name": "linux-arm64-clang-asan-ubsan",
+      "inherits": "linux-arm64-clang",
+      "binaryDir": "${sourceDir}/build/linux-arm64-clang-asan-ubsan",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
         "QUARK_ENABLE_ASAN": "ON",
@@ -175,10 +274,29 @@
       }
     },
     {
+      "name": "linux-arm64-clang-tsan",
+      "inherits": "linux-arm64-clang",
+      "binaryDir": "${sourceDir}/build/linux-arm64-clang-tsan",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "QUARK_ENABLE_TSAN": "ON"
+      }
+    },
+    {
       "name": "linux-x64-clang-release",
       "inherits": "linux-x64-clang",
       "binaryDir": "${sourceDir}/build/linux-x64-clang-release",
-      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "linux-arm64-clang-release",
+      "inherits": "linux-arm64-clang",
+      "binaryDir": "${sourceDir}/build/linux-arm64-clang-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
     },
     {
       "name": "linux-x64-clang-release-lto",
@@ -189,18 +307,46 @@
         "QUARK_ENABLE_LTO": "ON"
       }
     },
-
+    {
+      "name": "linux-arm64-clang-release-lto",
+      "inherits": "linux-arm64-clang",
+      "binaryDir": "${sourceDir}/build/linux-arm64-clang-release-lto",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "QUARK_ENABLE_LTO": "ON"
+      }
+    },
     {
       "name": "windows-x64-msvc-debug",
       "inherits": "windows-x64-msvc",
       "binaryDir": "${sourceDir}/build/windows-x64-msvc-debug",
-      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "windows-arm64-msvc-debug",
+      "inherits": "windows-arm64-msvc",
+      "binaryDir": "${sourceDir}/build/windows-arm64-msvc-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
     },
     {
       "name": "windows-x64-msvc-release",
       "inherits": "windows-x64-msvc",
       "binaryDir": "${sourceDir}/build/windows-x64-msvc-release",
-      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "windows-arm64-msvc-release",
+      "inherits": "windows-arm64-msvc",
+      "binaryDir": "${sourceDir}/build/windows-arm64-msvc-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
     },
     {
       "name": "windows-x64-msvc-release-lto",
@@ -210,9 +356,17 @@
         "CMAKE_BUILD_TYPE": "Release",
         "QUARK_ENABLE_LTO": "ON"
       }
+    },
+    {
+      "name": "windows-arm64-msvc-release-lto",
+      "inherits": "windows-arm64-msvc",
+      "binaryDir": "${sourceDir}/build/windows-arm64-msvc-release-lto",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "QUARK_ENABLE_LTO": "ON"
+      }
     }
   ],
-
   "buildPresets": [
     {
       "name": "macos-arm64-debug",
@@ -230,65 +384,113 @@
       "name": "macos-arm64-release-lto",
       "configurePreset": "macos-arm64-release-lto"
     },
-
     {
       "name": "macos-x64-debug",
       "configurePreset": "macos-x64-debug"
     },
-
     {
       "name": "linux-x64-gcc-debug",
       "configurePreset": "linux-x64-gcc-debug"
+    },
+    {
+      "name": "linux-arm64-gcc-debug",
+      "configurePreset": "linux-arm64-gcc-debug"
     },
     {
       "name": "linux-x64-gcc-asan-ubsan",
       "configurePreset": "linux-x64-gcc-asan-ubsan"
     },
     {
+      "name": "linux-arm64-gcc-asan-ubsan",
+      "configurePreset": "linux-arm64-gcc-asan-ubsan"
+    },
+    {
       "name": "linux-x64-gcc-tsan",
       "configurePreset": "linux-x64-gcc-tsan"
+    },
+    {
+      "name": "linux-arm64-gcc-tsan",
+      "configurePreset": "linux-arm64-gcc-tsan"
     },
     {
       "name": "linux-x64-gcc-release",
       "configurePreset": "linux-x64-gcc-release"
     },
     {
+      "name": "linux-arm64-gcc-release",
+      "configurePreset": "linux-arm64-gcc-release"
+    },
+    {
       "name": "linux-x64-gcc-release-lto",
       "configurePreset": "linux-x64-gcc-release-lto"
     },
-
+    {
+      "name": "linux-arm64-gcc-release-lto",
+      "configurePreset": "linux-arm64-gcc-release-lto"
+    },
     {
       "name": "linux-x64-clang-debug",
       "configurePreset": "linux-x64-clang-debug"
+    },
+    {
+      "name": "linux-arm64-clang-debug",
+      "configurePreset": "linux-arm64-clang-debug"
     },
     {
       "name": "linux-x64-clang-asan-ubsan",
       "configurePreset": "linux-x64-clang-asan-ubsan"
     },
     {
+      "name": "linux-arm64-clang-asan-ubsan",
+      "configurePreset": "linux-arm64-clang-asan-ubsan"
+    },
+    {
       "name": "linux-x64-clang-tsan",
       "configurePreset": "linux-x64-clang-tsan"
+    },
+    {
+      "name": "linux-arm64-clang-tsan",
+      "configurePreset": "linux-arm64-clang-tsan"
     },
     {
       "name": "linux-x64-clang-release",
       "configurePreset": "linux-x64-clang-release"
     },
     {
+      "name": "linux-arm64-clang-release",
+      "configurePreset": "linux-arm64-clang-release"
+    },
+    {
       "name": "linux-x64-clang-release-lto",
       "configurePreset": "linux-x64-clang-release-lto"
     },
-
+    {
+      "name": "linux-arm64-clang-release-lto",
+      "configurePreset": "linux-arm64-clang-release-lto"
+    },
     {
       "name": "windows-x64-msvc-debug",
       "configurePreset": "windows-x64-msvc-debug"
+    },
+    {
+      "name": "windows-arm64-msvc-debug",
+      "configurePreset": "windows-arm64-msvc-debug"
     },
     {
       "name": "windows-x64-msvc-release",
       "configurePreset": "windows-x64-msvc-release"
     },
     {
+      "name": "windows-arm64-msvc-release",
+      "configurePreset": "windows-arm64-msvc-release"
+    },
+    {
       "name": "windows-x64-msvc-release-lto",
       "configurePreset": "windows-x64-msvc-release-lto"
+    },
+    {
+      "name": "windows-arm64-msvc-release-lto",
+      "configurePreset": "windows-arm64-msvc-release-lto"
     }
   ]
 }
