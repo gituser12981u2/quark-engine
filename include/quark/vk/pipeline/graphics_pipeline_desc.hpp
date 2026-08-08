@@ -44,8 +44,15 @@ struct MultisampleStateDesc {
   VkSampleCountFlagBits samples{VK_SAMPLE_COUNT_1_BIT};
 };
 
+struct PipelineLayoutDesc {
+  std::span<const VkDescriptorSetLayout> set_layouts;
+  std::span<const VkPushConstantRange> push_constant_ranges;
+};
+
 struct GraphicsPipelineDesc {
   std::span<const ShaderStageDesc> stages;
+
+  PipelineLayoutDesc layout{};
 
   VertexLayoutDesc vertex_layout{};
   VkPrimitiveTopology topology{VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST};

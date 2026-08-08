@@ -1,5 +1,6 @@
 #include <array>
 #include <cstdint>
+#include <limits>
 #include <quark/platform/shader/details/shader_registry.hpp>
 #include <quark/utils/diagnostic.hpp>
 #include <quark/utils/error_types.hpp>
@@ -12,6 +13,7 @@
 #include <quark/vk/pipeline/vertex_layout.hpp>
 #include <quark/vk/vk_error.hpp>
 #include <span>
+#include <sys/stat.h>
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
@@ -19,7 +21,7 @@ namespace quark::vk::details {
 
 namespace {
 
-// TODO: replace with inplace_vector and upgrade to c++26
+// TODO: get rid of arbitrary limits
 struct PipelineScratch {
   std::array<VkPipelineShaderStageCreateInfo,
              pipeline_limits::kMaxGraphicsShaderStages>
@@ -117,6 +119,18 @@ util::Status validate_desc(const GraphicsPipeline::CreateInfo &ci) {
   QUARK_ENSURE(desc.dynamic_states.size() <= pipeline_limits::kMaxDynamicStates,
                QUARK_ERR(util::Errc::InvalidArg,
                          "graphics pipeline has too many dynamic states"));
+
+  QUARK_ENSURE(
+      desc.layout.push_constant_ranges.size() <=
+          std::numeric_limits<uint32_t>::max(),
+      QUARK_ERR(util::Errc::InvalidArg,
+                "graphics pipeline has too many push-constant ranges"));
+
+  for (VkDescriptorSetLayout set_layout : desc.layout.set_layouts) {
+    QUARK_ENSURE(set_layout != VK_NULL_HANDLE,
+                 QUARK_ERR(util::Errc::InvalidArg,
+                           "graphics pipeline descriptor-set layout is null"));
+  }
 
   if (desc.backend == PipelineRenderBackend::RenderPass) {
     QUARK_ENSURE(
@@ -282,10 +296,15 @@ util::Status GraphicsPipeline::create(const CreateInfo &ci) {
 
   QUARK_TRY_STATUS(layout_.create({
       .device = ci.device,
-      .set_layout_count = 0,
-      .set_layouts = nullptr,
-      .push_constant_range_count = 0,
-      .push_constant_ranges = nullptr,
+      .set_layout_count = static_cast<uint32_t>(desc.layout.set_layouts.size()),
+      .set_layouts = desc.layout.set_layouts.empty()
+                         ? nullptr
+                         : desc.layout.set_layouts.data(),
+      .push_constant_range_count =
+          static_cast<uint32_t>(desc.layout.push_constant_ranges.size()),
+      .push_constant_ranges = desc.layout.push_constant_ranges.empty()
+                                  ? nullptr
+                                  : desc.layout.push_constant_ranges.data(),
       .allocator = ci.allocator,
   }));
 
