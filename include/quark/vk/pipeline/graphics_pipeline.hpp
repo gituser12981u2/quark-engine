@@ -4,9 +4,9 @@
 #include "quark/utils/raii.hpp"
 #include "quark/utils/result.hpp"
 
+#include "quark/rhi/pipeline/details/pipeline.hpp"
 #include "quark/vk/pipeline/details/graphics_pipeline_handle.hpp"
 #include "quark/vk/pipeline/details/graphics_pipeline_registry.hpp"
-#include "quark/vk/pipeline/details/pipeline.hpp"
 #include "quark/vk/pipeline/graphics_pipeline_view.hpp"
 
 #include <cstdint>

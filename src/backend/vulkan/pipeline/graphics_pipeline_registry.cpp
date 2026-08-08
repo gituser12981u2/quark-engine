@@ -6,7 +6,6 @@
 #include "quark/vk/device/device_view.hpp"
 #include "quark/vk/pipeline/details/graphics_pipeline_handle.hpp"
 #include "quark/vk/pipeline/details/graphics_pipeline_registry.hpp"
-#include "quark/vk/pipeline/details/pipeline.hpp"
 #include "quark/vk/pipeline/graphics_pipeline_desc.hpp"
 
 #include <cstdint>
@@ -87,8 +86,8 @@ GraphicsPipelineRegistry::create_pipeline(const PipelineCreateInfo &ci) {
       .desc = ci.desc,
       .shaders = shaders_,
       .pipeline_layout = ci.desc->pipeline_layout,
-      .cache = VK_NULL_HANDLE,
-      .allocator = allocator_,
+      .retire_queue = retire_queue_,
+      // .cache = VK_NULL_HANDLE,
   }));
 
   pending.slot().layout = ci.desc->pipeline_layout;
@@ -101,7 +100,7 @@ void GraphicsPipelineRegistry::destroy(GraphicsPipelineHandle handle,
   retire_live_slot_(handle, retire_at);
 }
 
-const Pipeline *GraphicsPipelineRegistry::pipeline(
+const rhi::Pipeline *GraphicsPipelineRegistry::pipeline(
     GraphicsPipelineHandle handle) const noexcept {
   const GraphicsPipelineSlot *slot = slot_if_live_(handle);
   return slot == nullptr ? nullptr : &slot->pipeline;

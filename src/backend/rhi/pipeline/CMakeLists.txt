@@ -1,4 +1,4 @@
-add_library(quark_backend_rhi_pipeline STATIC pipeline_layout.cpp)
+add_library(quark_backend_rhi_pipeline STATIC pipeline.cpp pipeline_layout.cpp)
 add_library(quark::backend::rhi::pipeline ALIAS quark_backend_rhi_pipeline)
 
 target_link_libraries(quark_backend_rhi_pipeline PUBLIC quark::headers::vk)

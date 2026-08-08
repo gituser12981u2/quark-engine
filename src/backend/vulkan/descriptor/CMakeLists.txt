@@ -1,4 +1,5 @@
-add_library(quark_backend_vulkan_descriptor STATIC descriptor_set_layout.cpp)
+add_library(quark_backend_vulkan_descriptor STATIC
+            descriptor_set_layout_backend.cpp)
 add_library(quark::backend::vulkan::descriptor ALIAS
             quark_backend_vulkan_descriptor)
 

@@ -13,8 +13,7 @@ public:
   struct CreateInfo {
     DeviceView device{};
     const rhi::DescriptorSetLayoutDesc *desc{nullptr};
-    // VkDescriptorSetLayoutCreateFlags flags{};
-    // const VkAllocationCallbacks *allocator{nullptr};
+    const VkAllocationCallbacks *allocator{nullptr};
   };
 
   DescriptorSetLayoutBackend() = default;
@@ -26,7 +25,7 @@ public:
   void destroy() noexcept;
 
   [[nodiscard]] bool valid() const noexcept {
-    return handle_ != VK_NULL_HANDLE;
+    return device_.device != VK_NULL_HANDLE && handle_ != VK_NULL_HANDLE;
   }
 
   [[nodiscard]] VkDescriptorSetLayout vk_handle() const noexcept {
@@ -36,7 +35,7 @@ public:
 private:
   DeviceView device_{};
   VkDescriptorSetLayout handle_{VK_NULL_HANDLE};
-  // const VkAllocationCallbacks *allocator_{nullptr};
+  const VkAllocationCallbacks *allocator_{nullptr};
 };
 
 } // namespace quark::vk

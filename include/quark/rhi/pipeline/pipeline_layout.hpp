@@ -1,68 +1,44 @@
 #pragma once
 
-#include "quark/rhi/pipeline/details/pipeline_layout_handle.hpp"
+#include "quark/rhi/backend/native_backend_ref.hpp"
+#include "quark/rhi/device/backend_access.hpp"
+#include "quark/rhi/device/device_view.hpp"
 #include "quark/rhi/pipeline/pipeline_layout_desc.hpp"
 #include "quark/utils/raii.hpp"
 #include "quark/utils/result.hpp"
 
-#include "quark/vk/device/device_view.hpp"
-#include "quark/vk/pipeline/pipeline_layout_backend.hpp"
+#include <memory>
 
-namespace quark {
+namespace quark::rhi {
 
-namespace engine {
-class RetirementQueue;
-}
-
-namespace vk {
-class GraphicsPipeline;
-
-namespace details {
 class Pipeline;
-}
-
-} // namespace vk
-
-namespace rhi {
 
 class PipelineLayout final {
 public:
   using Desc = PipelineLayoutDesc;
 
   struct CreateInfo {
-    vk::DeviceView device{};
-    engine::RetirementQueue *retire_queue{nullptr};
+    DeviceView device{};
     const Desc *desc{nullptr};
   };
 
-  PipelineLayout() = default;
-  ~PipelineLayout() { destroy(); }
+  PipelineLayout();
+  ~PipelineLayout();
 
   QUARK_MOVE_ONLY(PipelineLayout);
 
   [[nodiscard]] util::Status create(const CreateInfo &ci);
   void destroy() noexcept;
 
-  [[nodiscard]] bool valid() const noexcept {
-    return handle_.valid() && backend_ != nullptr && backend_->valid();
-  }
+  [[nodiscard]] bool valid() const noexcept;
 
 private:
-  friend class vk::GraphicsPipeline;
-  friend class vk::details::Pipeline;
+  friend class Pipeline;
 
-  [[nodiscard]] VkPipelineLayout vk_handle() const noexcept {
-    return valid() ? backend_->handle() : VK_NULL_HANDLE;
-  }
+  [[nodiscard]] NativeBackendRef native_backend() const noexcept;
 
-  using Registry = engine::BackendRegistry<details::PipelineLayoutHandle,
-                                           vk::PipelineLayoutBackend>;
-
-  Registry registry_;
-  details::PipelineLayoutHandle handle_{};
-  const vk::PipelineLayoutBackend *backend_{nullptr};
+  struct Impl;
+  std::unique_ptr<Impl> impl_;
 };
 
-} // namespace rhi
-
-} // namespace quark
+} // namespace quark::rhi

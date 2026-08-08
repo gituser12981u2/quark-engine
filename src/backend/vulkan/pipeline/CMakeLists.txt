@@ -1,6 +1,6 @@
 add_library(
   quark_backend_vulkan_pipeline STATIC
-  graphics_pipeline.cpp graphics_pipeline_registry.cpp pipeline.cpp
+  graphics_pipeline.cpp graphics_pipeline_registry.cpp pipeline_backend.cpp
   pipeline_layout_backend.cpp)
 add_library(quark::backend::vulkan::pipeline ALIAS
             quark_backend_vulkan_pipeline)

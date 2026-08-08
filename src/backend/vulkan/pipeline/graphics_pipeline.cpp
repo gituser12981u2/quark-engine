@@ -1,9 +1,9 @@
 #include "quark/vk/pipeline/graphics_pipeline.hpp"
+#include "quark/rhi/pipeline/details/pipeline.hpp"
 #include "quark/rhi/pipeline/pipeline_layout.hpp"
 #include "quark/utils/diagnostic.hpp"
 #include "quark/utils/error_types.hpp"
 #include "quark/utils/result.hpp"
-#include "quark/vk/pipeline/details/pipeline.hpp"
 #include "quark/vk/pipeline/graphics_pipeline_desc.hpp"
 #include "quark/vk/pipeline/graphics_pipeline_view.hpp"
 

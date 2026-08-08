@@ -1,11 +1,18 @@
 #pragma once
 
+#include "quark/rhi/format.hpp"
+
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <span>
-#include <vulkan/vulkan_core.h>
 
-namespace quark::vk {
+namespace quark::rhi {
+
+enum class VertexInputRate : uint8_t {
+  Vertex,
+  Instance,
+};
 
 /**
  * @class VertexAttributeDesc
@@ -17,7 +24,7 @@ namespace quark::vk {
 struct VertexAttributeDesc {
   uint32_t location{};
   uint32_t binding{};
-  VkFormat format{VK_FORMAT_UNDEFINED};
+  Format format{Format::Undefined};
   uint32_t offset{};
 };
 
@@ -30,7 +37,7 @@ struct VertexAttributeDesc {
 struct VertexBindingDesc {
   uint32_t binding{};
   uint32_t stride{};
-  VkVertexInputRate input_rate{VK_VERTEX_INPUT_RATE_VERTEX};
+  VertexInputRate input_rate{VertexInputRate::Vertex};
 };
 
 /**
@@ -52,6 +59,7 @@ struct VertexLayoutDesc {
 struct Position2Color3Vertex {
   float x{};
   float y{};
+
   float r{};
   float g{};
   float b{};
@@ -62,7 +70,7 @@ struct Position2Color3Vertex {
         VertexBindingDesc{
             .binding = 0,
             .stride = sizeof(Position2Color3Vertex),
-            .input_rate = VK_VERTEX_INPUT_RATE_VERTEX,
+            .input_rate = VertexInputRate::Vertex,
         },
     }};
   }
@@ -73,17 +81,17 @@ struct Position2Color3Vertex {
         VertexAttributeDesc{
             .location = 0,
             .binding = 0,
-            .format = VK_FORMAT_R32G32_SFLOAT,
-            .offset = 0,
+            .format = Format::R32G32Float,
+            .offset = offsetof(Position2Color3Vertex, x),
         },
         VertexAttributeDesc{
             .location = 1,
             .binding = 0,
-            .format = VK_FORMAT_R32G32_SFLOAT,
-            .offset = sizeof(float) * 2,
+            .format = Format::R32G32B32Float,
+            .offset = offsetof(Position2Color3Vertex, r),
         },
     }};
   }
 };
 
-} // namespace quark::vk
+} // namespace quark::rhi

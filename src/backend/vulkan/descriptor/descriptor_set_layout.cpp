@@ -1,117 +1,125 @@
 #include "quark/rhi/descriptor/descriptor_set_layout.hpp"
+#include "quark/engine/registry/backend_registry.hpp"
+#include "quark/rhi/descriptor/details/descriptor_set_layout_handle.hpp"
 #include "quark/utils/diagnostic.hpp"
 #include "quark/utils/error_types.hpp"
-#include "quark/vk/device/device_view.hpp"
-#include "quark/vk/diagnostic_prelude.hpp"
+#include "quark/vk/descriptor/descriptor_set_layout_backend.hpp"
 
 #include <cstdint>
-#include <vector>
 #include <vulkan/vulkan_core.h>
 
-namespace quark::vk {
+namespace quark::vk::details {
 
 namespace {
-
-[[nodiscard]] VkDescriptorType
-to_vk_descriptor_type(rhi::DescriptorType type) noexcept {
-  switch (type) {
-  case rhi::DescriptorType::UniformBuffer:
-    return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-  case rhi::DescriptorType::StorageBuffer:
-    return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-  case rhi::DescriptorType::CombinedImageSampler:
-    return VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-  case rhi::DescriptorType::SampledImage:
-    return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-  case rhi::DescriptorType::StorageImage:
-    return VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-  case rhi::DescriptorType::Sampler:
-    return VK_DESCRIPTOR_TYPE_SAMPLER;
-  }
-
-  return VK_DESCRIPTOR_TYPE_MAX_ENUM;
+using DescriptorSetLayoutRegistry =
+    engine::BackendRegistry<rhi::details::DescriptorSetLayoutHandle,
+                            vk::DescriptorSetLayoutBackend>;
 }
 
-[[nodiscard]] VkShaderStageFlags
-to_vk_shader_stages(rhi::ShaderStageFlags stages) noexcept {
-  VkShaderStageFlags flags{};
-
-  if ((stages & static_cast<uint32_t>(rhi::ShaderStage::Vertex)) != 0U) {
-    flags |= VK_SHADER_STAGE_VERTEX_BIT;
-  }
-
-  if ((stages & static_cast<uint32_t>(rhi::ShaderStage::Fragment)) != 0U) {
-    flags |= VK_SHADER_STAGE_FRAGMENT_BIT;
-  }
-
-  if ((stages & static_cast<uint32_t>(rhi::ShaderStage::Compute)) != 0U) {
-    flags |= VK_SHADER_STAGE_FRAGMENT_BIT;
-  }
-
-  return flags;
+DescriptorSetLayoutRegistry &descriptor_set_layout_registry() noexcept {
+  static DescriptorSetLayoutRegistry registry;
+  return registry;
 }
 
-} // namespace
+} // namespace quark::vk::details
 
-util::Status DescriptorSetLayoutBackend::create(const CreateInfo &ci) {
+namespace quark::rhi {
+
+DescriptorSetLayout::DescriptorSetLayout() noexcept = default;
+
+DescriptorSetLayout::~DescriptorSetLayout() { destroy(); }
+
+DescriptorSetLayout::DescriptorSetLayout(DescriptorSetLayout &&other) noexcept
+    : device_(std::exchange(other.device_, DeviceView{})),
+      retire_queue_(std::exchange(other.retire_queue_, nullptr)),
+      handle_(
+          std::exchange(other.handle_, details::DescriptorSetLayoutHandle{})) {}
+
+DescriptorSetLayout &
+DescriptorSetLayout::operator=(DescriptorSetLayout &&other) noexcept {
+  if (this == &other) {
+    return *this;
+  }
+
+  destroy();
+
+  device_ = std::exchange(other.device_, DeviceView{});
+  retire_queue_ = std::exchange(other.retire_queue_, nullptr);
+  handle_ = std::exchange(other.handle_, details::DescriptorSetLayoutHandle{});
+
+  return *this;
+}
+
+util::Status DescriptorSetLayout::create(const CreateInfo &ci) {
+  QUARK_ENSURE(ci.device.valid(),
+               QUARK_ERR(util::Errc::InvalidArg,
+                         "descriptor set layout device is invalid"));
+
   QUARK_ENSURE(
       ci.desc != nullptr,
       QUARK_ERR(util::Errc::InvalidArg, "descriptor set layout desc is null"));
 
-  QUARK_TRY_STATUS(validate(ci.device));
+  const vk::DescriptorSetLayoutBackend::CreateInfo backend_ci{
+      .device = ci.device.backend(), .desc = ci.desc};
+
+  details::DescriptorSetLayoutHandle new_handle{};
+
+  QUARK_TRY_ASSIGN(
+      new_handle,
+      vk::details::descriptor_set_layout_registry().create_backend(backend_ci));
 
   destroy();
 
   device_ = ci.device;
-
-  std::vector<VkDescriptorSetLayoutBinding> bindings;
-  bindings.reserve(ci.desc->bindings.size());
-
-  for (const rhi::DescriptorBindingDesc &binding : ci.desc->bindings) {
-    const VkDescriptorType type = to_vk_descriptor_type(binding.type);
-    const VkShaderStageFlags stages = to_vk_shader_stages(binding.stages);
-
-    QUARK_ENSURE(
-        type != VK_DESCRIPTOR_TYPE_MAX_ENUM,
-        QUARK_ERR(util::Errc::InvalidArg, "invalid descriptor binding type"));
-
-    QUARK_ENSURE(
-        binding.count > 0,
-        QUARK_ERR(util::Errc::InvalidArg, "descriptor binding count is zero"));
-
-    QUARK_ENSURE(stages != 0,
-                 QUARK_ERR(util::Errc::InvalidArg,
-                           "descriptor binding shader stages are empty"));
-
-    bindings.push_back(VkDescriptorSetLayoutBinding{
-        .binding = binding.binding,
-        .descriptorType = type,
-        .descriptorCount = binding.count,
-        .stageFlags = stages,
-        .pImmutableSamplers = nullptr,
-    });
-  }
-
-  VkDescriptorSetLayoutCreateInfo layout_info{};
-  layout_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-  layout_info.flags = 0;
-  layout_info.bindingCount = static_cast<uint32_t>(bindings.size());
-  layout_info.pBindings = bindings.data();
-
-  QUARK_VK_TRY(vkCreateDescriptorSetLayout(device_.device, &layout_info,
-                                           /*pAllocator=*/nullptr, &handle_));
+  retire_queue_ = ci.retire_queue;
+  handle_ = new_handle;
 
   QUARK_OK();
 }
 
-void DescriptorSetLayoutBackend::destroy() noexcept {
-  if (device_.device != VK_NULL_HANDLE && handle_ != VK_NULL_HANDLE) {
-    vkDestroyDescriptorSetLayout(device_.device, handle_,
-                                 /*pAllocator=*/nullptr);
+void DescriptorSetLayout::destroy() noexcept {
+  if (handle_.valid()) {
+    vk::details::descriptor_set_layout_registry().destroy_backend(handle_);
   }
 
-  handle_ = VK_NULL_HANDLE;
   device_ = {};
+  retire_queue_ = nullptr;
+  handle_ = {};
 }
 
-} // namespace quark::vk
+void DescriptorSetLayout::retire(uint64_t retire_at) noexcept {
+  if (handle_.valid()) {
+    vk::details::descriptor_set_layout_registry().retire(handle_, retire_queue_,
+                                                         retire_at);
+  }
+
+  device_ = {};
+  retire_queue_ = nullptr;
+  handle_ = {};
+}
+
+bool DescriptorSetLayout::valid() const noexcept {
+  if (!device_.valid() || !handle_.valid()) {
+    return false;
+  }
+
+  const vk::DescriptorSetLayoutBackend *backend =
+      vk::details::descriptor_set_layout_registry().backend(handle_);
+
+  return backend != nullptr && backend->valid();
+}
+
+NativeBackendRef DescriptorSetLayout::native_backend() const noexcept {
+  if (!valid()) {
+    return {};
+  }
+
+  const vk::DescriptorSetLayoutBackend *backend =
+      vk::details::descriptor_set_layout_registry().backend(handle_);
+
+  return NativeBackendRef{
+      .ptr = backend,
+  };
+}
+
+} // namespace quark::rhi

@@ -1,11 +1,17 @@
 #include "quark/vk/pipeline/pipeline_layout_backend.hpp"
+#include "quark/engine/registry/backend_registry.hpp"
+#include "quark/rhi/backend/native_backend_ref.hpp"
 #include "quark/rhi/descriptor/descriptor_set_layout.hpp"
+#include "quark/rhi/pipeline/details/pipeline_layout_handle.hpp"
 #include "quark/utils/diagnostic.hpp"
 #include "quark/utils/error_types.hpp"
+#include "quark/vk/descriptor/descriptor_set_layout_backend.hpp"
+#include "quark/vk/device/device_backend.hpp"
 #include "quark/vk/diagnostic_prelude.hpp"
 #include "quark/vk/rhi_translation.hpp"
 
 #include <cstdint>
+#include <variant>
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
@@ -24,6 +30,9 @@ util::Status PipelineLayoutBackend::create(const CreateInfo &ci) {
   std::vector<VkDescriptorSetLayout> vk_sets_layouts;
   vk_sets_layouts.reserve(ci.desc->descriptor_set_layouts.size());
 
+  using DescriptorSetLayoutBackendVariant =
+      std::variant<DescriptorSetLayoutBackend>;
+
   for (const rhi::DescriptorSetLayout *layout :
        ci.desc->descriptor_set_layouts) {
     QUARK_ENSURE(layout != nullptr,
@@ -34,7 +43,23 @@ util::Status PipelineLayoutBackend::create(const CreateInfo &ci) {
                  QUARK_ERR(util::Errc::InvalidArg,
                            "pipeline layout descriptor set layout is invalid"));
 
-    vk_sets_layouts.push_back(layout->vk_handle());
+    const rhi::NativeBackendRef ref = layout->native_backend();
+
+    const auto *backend_variant = ref.as<DescriptorSetLayoutBackendVariant>();
+
+    QUARK_ENSURE(backend_variant != nullptr,
+                 QUARK_ERR(util::Errc::InvalidArg,
+                           "descriptor set layout native backend is null"));
+
+    VkDescriptorSetLayout vk_layout =
+        std::visit([](const auto &backend) { return backend.vk_handle(); },
+                   *backend_variant);
+
+    QUARK_ENSURE(vk_layout != VK_NULL_HANDLE,
+                 QUARK_ERR(util::Errc::InvalidArg,
+                           "descriptor set layout Vulkan handle is null"));
+
+    vk_sets_layouts.push_back(vk_layout);
   }
 
   std::vector<VkPushConstantRange> vk_push_constant_ranges;

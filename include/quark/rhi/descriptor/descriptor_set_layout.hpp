@@ -1,50 +1,59 @@
 #pragma once
 
-#include "quark/engine/registry/backend_registry.hpp"
+#include "quark/rhi/backend/native_backend_ref.hpp"
 #include "quark/rhi/descriptor/descriptor_set_layout_desc.hpp"
 #include "quark/rhi/descriptor/details/descriptor_set_layout_handle.hpp"
-#include "quark/utils/raii.hpp"
+#include "quark/rhi/device/device_view.hpp"
 #include "quark/utils/result.hpp"
 
-#include "quark/vk/descriptor/descriptor_set_layout_backend.hpp"
-#include "quark/vk/device/device_view.hpp"
+#include <cstddef>
+#include <cstdint>
 
 namespace quark {
 
 namespace engine {
 class RetirementQueue;
-}
+};
 
 namespace rhi {
+
+class PipelineLayout;
 
 class DescriptorSetLayout final {
 public:
   struct CreateInfo {
-    vk::DeviceView device{};
+    DeviceView device;
     engine::RetirementQueue *retire_queue{nullptr};
     const DescriptorSetLayoutDesc *desc{nullptr};
-    // VkDescriptorSetLayoutCreateFlags flags{};
-    // const VkAllocationCallbacks *allocator{nullptr};
   };
 
-  DescriptorSetLayout() = default;
-  ~DescriptorSetLayout() { destroy(); }
+  DescriptorSetLayout() noexcept;
+  ~DescriptorSetLayout();
 
-  QUARK_MOVE_ONLY(DescriptorSetLayout);
+  DescriptorSetLayout(const DescriptorSetLayout &) = delete;
+  DescriptorSetLayout &operator=(DescriptorSetLayout &&other) noexcept;
+  DescriptorSetLayout(DescriptorSetLayout &&other) noexcept;
 
   [[nodiscard]] util::Status create(const CreateInfo &ci);
   void destroy() noexcept;
 
+  void retire(uint64_t retire_at) noexcept;
+
   [[nodiscard]] bool valid() const noexcept;
 
-  [[nodiscard]] VkDescriptorSetLayout vk_handle() const noexcept;
+  [[nodiscard]] details::DescriptorSetLayoutHandle handle() const noexcept {
+    return handle_;
+  }
 
 private:
-  engine::BackendRegistry<details::DescriptorSetLayoutHandle,
-                          vk::DescriptorSetLayoutBackend>
-      registry_;
+  friend class PipelineLayout;
+
+  [[nodiscard]] NativeBackendRef native_backend() const noexcept;
+
+  DeviceView device_;
+  engine::RetirementQueue *retire_queue_{nullptr};
+
   details::DescriptorSetLayoutHandle handle_{};
-  const vk::DescriptorSetLayoutBackend *backend_{nullptr};
 };
 
 } // namespace rhi

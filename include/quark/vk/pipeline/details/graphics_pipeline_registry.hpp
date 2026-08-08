@@ -1,13 +1,12 @@
 #pragma once
 
 #include "quark/engine/registry/registry_base.hpp"
-#include "quark/rhi/pipeline/pipeline_layout.hpp"
+#include "quark/rhi/pipeline/details/pipeline.hpp"
 #include "quark/utils/raii.hpp"
 #include "quark/utils/result.hpp"
 
 #include "quark/vk/device/device_view.hpp"
 #include "quark/vk/pipeline/details/graphics_pipeline_handle.hpp"
-#include "quark/vk/pipeline/details/pipeline.hpp"
 
 #include <cstdint>
 #include <vulkan/vulkan_core.h>
@@ -35,12 +34,12 @@ struct GraphicsPipelineSlot {
   bool live{false};
   uint32_t generation{1};
 
-  Pipeline pipeline;
+  rhi::Pipeline pipeline;
   const rhi::PipelineLayout *layout{nullptr};
 };
 
 struct RetiredGraphicsPipeline {
-  Pipeline pipeline;
+  rhi::Pipeline pipeline;
 };
 
 struct GraphicsPipelineRegistryPolicy {
@@ -92,7 +91,7 @@ public:
 
   using Base::alive;
 
-  [[nodiscard]] const Pipeline *
+  [[nodiscard]] const rhi::Pipeline *
   pipeline(GraphicsPipelineHandle handle) const noexcept;
   [[nodiscard]] const rhi::PipelineLayout *
   layout(GraphicsPipelineHandle handle) const noexcept;

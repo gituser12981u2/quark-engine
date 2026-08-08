@@ -57,22 +57,10 @@ private:
   using Base = RegistryBase<Handle, Slot, RetiredPayload, Policy>;
 
 public:
-  struct CreateInfo {
-    RetirementQueue *retire_queue{nullptr};
-  };
-
   BackendRegistry() = default;
-  ~BackendRegistry() { destroy(); }
+  ~BackendRegistry() { clear(); }
 
   QUARK_MOVE_ONLY(BackendRegistry);
-
-  util::Status create(const CreateInfo &ci) {
-    destroy();
-    Base::retire_queue_ = ci.retire_queue;
-    QUARK_OK();
-  }
-
-  void destroy() noexcept { Base::clear_slots_immediate_(); }
 
   template <class CreateInfo>
   util::Result<Handle> create_backend(const CreateInfo &ci) {
@@ -83,8 +71,13 @@ public:
     return pending.commit();
   }
 
-  void retire(Handle handle, uint64_t retire_at) noexcept {
-    Base::retire_live_slot_(handle, retire_at);
+  void destroy_backend(Handle handle) noexcept {
+    Base::destroy_live_slot_immediate_(handle);
+  }
+
+  void retire(Handle handle, RetirementQueue *retire_queue,
+              uint64_t retire_at) noexcept {
+    Base::retire_live_slot_(handle, retire_queue, retire_at);
   }
 
   void clear() noexcept { Base::clear_slots_immediate_(); }
@@ -93,20 +86,14 @@ public:
 
   [[nodiscard]] Backend *backend(Handle handle) noexcept {
     Slot *slot = Base::slot_if_live_(handle);
-    if (slot == nullptr) {
-      return nullptr;
-    }
 
-    return &slot->backend;
+    return slot == nullptr ? nullptr : &slot->backend;
   }
 
   [[nodiscard]] const Backend *backend(Handle handle) const noexcept {
     const Slot *slot = Base::slot_if_live_(handle);
-    if (slot == nullptr) {
-      return nullptr;
-    }
 
-    return &slot->backend;
+    return slot == nullptr ? nullptr : &slot->backend;
   }
 };
 

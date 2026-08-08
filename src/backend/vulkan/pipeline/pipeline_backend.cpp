@@ -1,19 +1,22 @@
+#include "quark/vk/pipeline/pipeline_backend.hpp"
+#include "quark/rhi/backend/native_backend_ref.hpp"
 #include "quark/rhi/shader/details/shader_registry.hpp"
-#include "quark/rhi/shader/shader_stage.hpp"
-#include "quark/rhi/shader/shader_stage_desc.hpp"
 #include "quark/utils/diagnostic.hpp"
 #include "quark/utils/error_types.hpp"
 #include "quark/utils/result.hpp"
+#include "quark/vk/diagnostic_prelude.hpp"
 #include "quark/vk/pipeline/details/pipeline_scratch.hpp"
 #include "quark/vk/pipeline/graphics_pipeline_desc.hpp"
+#include "quark/vk/pipeline/pipeline_layout_backend.hpp"
 #include "quark/vk/pipeline/pipeline_limits.hpp"
 #include "quark/vk/pipeline/vertex_layout.hpp"
 #include "quark/vk/rhi_translation.hpp"
-#include <quark/vk/diagnostic_prelude.hpp>
-#include <quark/vk/pipeline/details/pipeline.hpp>
+
+#include <cassert>
+
 #include <vulkan/vulkan_core.h>
 
-namespace quark::vk::details {
+namespace quark::vk {
 
 namespace {
 
@@ -50,7 +53,7 @@ make_blend_attachment(const ColorAttachmentDesc &desc) {
 }
 
 util::Status
-validate_graphics_create_info(const Pipeline::GraphicsCreateInfo &ci) {
+validate_graphics_create_info(const PipelineBackend::GraphicsCreateInfo &ci) {
   QUARK_TRY_STATUS(validate(ci.device));
 
   QUARK_ENSURE(ci.desc != nullptr,
@@ -110,7 +113,7 @@ validate_graphics_create_info(const Pipeline::GraphicsCreateInfo &ci) {
 
 util::Status build_scratch(VkDevice device, const GraphicsPipelineDesc &desc,
                            const rhi::details::ShaderRegistry &shaders,
-                           PipelineScratch &scratch) {
+                           details::PipelineScratch &scratch) {
   for (const rhi::ShaderStageDesc &stage_desc : desc.stages) {
     QUARK_ENSURE(shaders.alive(stage_desc.shader),
                  QUARK_ERR(util::Errc::InvalidArg,
@@ -121,12 +124,17 @@ util::Status build_scratch(VkDevice device, const GraphicsPipelineDesc &desc,
 
     const std::span<const uint32_t> code = shaders.code(stage_desc.shader);
 
+    QUARK_ENSURE(!code.empty(),
+                 QUARK_ERR(util::Errc::InvalidArg,
+                           "graphics pipeline shader code is empty"));
+
     VkShaderModuleCreateInfo module_info{};
     module_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     module_info.codeSize = code.size_bytes();
     module_info.pCode = code.data();
 
     VkShaderModule module{VK_NULL_HANDLE};
+
     QUARK_VK_TRY(vkCreateShaderModule(device, &module_info,
                                       /*pAllocator=*/nullptr, &module));
 
@@ -162,26 +170,7 @@ util::Status build_scratch(VkDevice device, const GraphicsPipelineDesc &desc,
 
 } // namespace
 
-util::Status Pipeline::create(const CreateInfo &ci) {
-  QUARK_TRY_STATUS(validate(ci.device));
-
-  QUARK_ENSURE(ci.graphics_info != nullptr,
-               QUARK_ERR(util::Errc::InvalidArg,
-                         "graphics pipeline create info is null"));
-
-  destroy();
-
-  device_ = ci.device;
-  allocator_ = ci.allocator;
-
-  QUARK_VK_TRY(
-      vkCreateGraphicsPipelines(device_.device, ci.cache, /*createInfoCount=*/1,
-                                ci.graphics_info, allocator_, &handle_));
-
-  QUARK_OK();
-}
-
-util::Status Pipeline::create_graphics(const GraphicsCreateInfo &ci) {
+util::Status PipelineBackend::create_graphics(const GraphicsCreateInfo &ci) {
   QUARK_TRY_STATUS(validate_graphics_create_info(ci));
 
   destroy();
@@ -193,7 +182,8 @@ util::Status Pipeline::create_graphics(const GraphicsCreateInfo &ci) {
   const GraphicsPipelineDesc &desc = *ci.desc;
   VkDevice device = ci.device.device;
 
-  PipelineScratch scratch{device};
+  details::PipelineScratch scratch{device};
+
   QUARK_TRY_STATUS(build_scratch(device, desc, *ci.shaders, scratch));
 
   VkPipelineVertexInputStateCreateInfo vertex_input{};
@@ -275,6 +265,17 @@ util::Status Pipeline::create_graphics(const GraphicsCreateInfo &ci) {
   rendering_info.depthAttachmentFormat = desc.depth_attachment.format;
   rendering_info.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
 
+  using PipelineLayoutBackendVariant = std::variant<vk::PipelineLayoutBackend>;
+
+  VkPipelineLayout vk_pipeline_layout =
+      rhi::visit_backend<PipelineLayoutBackendVariant>(
+          ci.pipeline_layout->native_backend(),
+          [](const auto &backend) { return backend.vk_handle(); });
+
+  QUARK_ENSURE(vk_pipeline_layout != VK_NULL_HANDLE,
+               QUARK_ERR(util::Errc::InvalidArg,
+                         "graphics pipeline Vulkan layout is null"));
+
   VkGraphicsPipelineCreateInfo pipeline_info{};
   pipeline_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
   pipeline_info.stageCount = scratch.stage_count;
@@ -290,7 +291,7 @@ util::Status Pipeline::create_graphics(const GraphicsCreateInfo &ci) {
   pipeline_info.pColorBlendState = &color_blend;
   pipeline_info.pDynamicState =
       desc.dynamic_states.empty() ? nullptr : &dynamic_state;
-  pipeline_info.layout = ci.pipeline_layout->vk_handle();
+  pipeline_info.layout = vk_pipeline_layout;
   pipeline_info.subpass = desc.subpass;
   pipeline_info.basePipelineHandle = VK_NULL_HANDLE;
   pipeline_info.basePipelineIndex = -1;
@@ -308,17 +309,17 @@ util::Status Pipeline::create_graphics(const GraphicsCreateInfo &ci) {
     pipeline_info.renderPass = desc.render_pass;
   }
 
-  util::Status status = create({.device = ci.device,
-                                .cache = ci.cache,
-                                .graphics_info = &pipeline_info,
-                                .allocator = ci.allocator});
+  device_ = ci.device;
+  allocator_ = ci.allocator;
 
-  QUARK_TRY_STATUS(status);
+  QUARK_VK_TRY(vkCreateGraphicsPipelines(device_.device, ci.cache,
+                                         /*createInfoCount=*/1, &pipeline_info,
+                                         allocator_, &handle_));
 
   QUARK_OK();
 }
 
-void Pipeline::destroy() noexcept {
+void PipelineBackend::destroy() noexcept {
   if (device_.device != VK_NULL_HANDLE && handle_ != VK_NULL_HANDLE) {
     vkDestroyPipeline(device_.device, handle_, allocator_);
   }
@@ -328,4 +329,4 @@ void Pipeline::destroy() noexcept {
   allocator_ = nullptr;
 }
 
-} // namespace quark::vk::details
+} // namespace quark::vk

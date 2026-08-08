@@ -1,14 +1,15 @@
 #pragma once
 
+#include "quark/rhi/backend/native_backend_ref.hpp"
+#include "quark/rhi/pipeline/details/pipeline.hpp"
 #include "quark/rhi/pipeline/pipeline_layout.hpp"
 #include "quark/vk/pipeline/details/graphics_pipeline_handle.hpp"
-#include "quark/vk/pipeline/details/pipeline.hpp"
 
 namespace quark::vk {
 
 struct GraphicsPipelineView {
   details::GraphicsPipelineHandle handle{};
-  const details::Pipeline *pipeline{nullptr};
+  const rhi::Pipeline *pipeline{nullptr};
   const rhi::PipelineLayout *layout{nullptr};
 
   [[nodiscard]] bool valid() const noexcept {
@@ -17,7 +18,13 @@ struct GraphicsPipelineView {
   }
 
   [[nodiscard]] VkPipeline vk_pipeline() const noexcept {
-    return valid() ? pipeline->handle() : VK_NULL_HANDLE;
+    return (!valid()) { return VK_NULL_HANDLE; }
+
+    using BackendVariant = std::variant<PipelineBackend>;
+
+    return rhi::visit_backend<BackendVariant>(
+        pipeline.native_backend(),
+        [](const auto &backend) { return backend.vk_handle(); });
   }
 };
 
