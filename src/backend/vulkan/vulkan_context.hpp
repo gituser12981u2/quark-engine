@@ -3,6 +3,7 @@
 #include "quark/vk/renderer.hpp"
 
 #include <array>
+#include <chrono>
 #include <cstdint>
 
 #include <quark/engine/retire/retirement_queue.hpp>
@@ -14,6 +15,7 @@
 
 #include <quark/vk/sync/gpu_timeline.hpp>
 #include <vector>
+#include <vk_mem_alloc.h>
 #include <vulkan/vulkan.h>
 
 #if !QUARK_HEADLESS
@@ -67,6 +69,7 @@ private:
   util::Status record_command_buffer(uint32_t image_index);
 
   util::Status create_render_pass();
+  util::Status create_depth_resources();
   util::Status create_framebuffers();
   util::Status submit_frame(VkCommandBuffer command_buffer,
                             VkSemaphore image_available,
@@ -75,6 +78,7 @@ private:
   util::Status draw_frame();
 
   void cleanup_swapchain();
+  void destroy_depth_resources() noexcept;
   util::Status recreate_swapchain();
 #endif
 
@@ -101,6 +105,17 @@ private:
 #if !QUARK_HEADLESS
   VkRenderPass render_pass_{VK_NULL_HANDLE};
   vector<VkFramebuffer> framebuffers_;
+  struct DepthResource {
+    VkImage image{VK_NULL_HANDLE};
+    VmaAllocation allocation{VK_NULL_HANDLE};
+    VkImageView view{VK_NULL_HANDLE};
+  };
+  vector<DepthResource> depth_resources_;
+  vector<bool> depth_images_initialized_;
+  VkFormat depth_format_{VK_FORMAT_UNDEFINED};
+  std::chrono::steady_clock::time_point start_time_{
+      std::chrono::steady_clock::now(),
+  };
 
   vector<uint64_t> images_in_flight_;
   vector<bool> swapchain_images_initialized_;

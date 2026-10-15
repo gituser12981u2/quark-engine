@@ -58,6 +58,7 @@ struct GraphicsPipelineDesc {
   DepthAttachmentDesc depth_attachment{};
 
   std::span<const VkDynamicState> dynamic_states;
+  std::span<const VkPushConstantRange> push_constant_ranges;
 
   // Probably shouldn't default initialize to anything
   PipelineRenderBackend backend{PipelineRenderBackend::DynamicRendering};

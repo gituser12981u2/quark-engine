@@ -1,10 +1,9 @@
 #pragma once
 
-#include <quark/vk/triangle_renderer.hpp>
+#include <quark/vk/scene_renderer.hpp>
 
 namespace quark::vk {
 
-// Temporary alias while the renderer remains triangle-backed.
-using Renderer = TriangleRenderer;
+using Renderer = SceneRenderer;
 
 } // namespace quark::vk

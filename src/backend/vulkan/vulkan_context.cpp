@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <array>
-#include <bit>
 #include <cstdint>
 #include <cstring>
 
@@ -38,8 +37,8 @@ struct RetireTestPayload {
   uint64_t retire_at{};
 };
 
-void retire_test_run(void *ctx) noexcept {
-  auto *payload = static_cast<RetireTestPayload *>(ctx);
+void retire_test_run(void *const ctx) noexcept {
+  auto *const payload = static_cast<RetireTestPayload *>(ctx);
   if (payload == nullptr) {
     return;
   }
@@ -48,15 +47,15 @@ void retire_test_run(void *ctx) noexcept {
                      payload->id, payload->retire_at);
 }
 
-void retire_test_cleanup(void *ctx) noexcept {
-  auto *payload = static_cast<RetireTestPayload *>(ctx);
+void retire_test_cleanup(void *const ctx) noexcept {
+  const auto *const payload = static_cast<RetireTestPayload *>(ctx);
   delete payload;
 }
 
 [[maybe_unused]] util::Status
 enqueue_retire_test(quark::vk::RetirementQueue &queue, uint64_t retire_at,
                     uint64_t id) {
-  auto *payload = new (std::nothrow) RetireTestPayload{
+  auto *const payload = new (std::nothrow) RetireTestPayload{
       .id = id,
       .retire_at = retire_at,
   };
@@ -116,7 +115,7 @@ constexpr auto api_version_at_least(uint32_t version, uint32_t major,
 
 auto choose_instance_api_version() -> uint32_t {
   uint32_t loader_version = VK_API_VERSION_1_0;
-#if defined(VK_VERSION_1_1)
+#ifdef VK_VERSION_1_1
   vkEnumerateInstanceVersion(&loader_version);
 #endif
 
@@ -161,7 +160,7 @@ auto create_probe_surface(VkInstance instance,
       instance != VK_NULL_HANDLE,
       QUARK_ERR(util::Errc::InvalidArg, "probe surface instance is null"));
 
-  const auto *source =
+  const auto *const source =
       quark::platform::query<quark::vk::IVulkanSurfaceSource>(window);
   QUARK_ENSURE(source != nullptr,
                QUARK_ERR(util::Errc::Unsupported,
@@ -212,6 +211,7 @@ util::Status VulkanContext::init() {
   QUARK_TRY_STATUS(create_frame());
 
   QUARK_TRY_STATUS(create_render_pass());
+  QUARK_TRY_STATUS(create_depth_resources());
   QUARK_TRY_STATUS(create_framebuffers());
 
   QUARK_TRY_STATUS(renderer_.create({
@@ -220,6 +220,7 @@ util::Status VulkanContext::init() {
       .retire_queue = &retirement_queue_,
       .extent = presenter_.swapchain().extent(),
       .color_format = presenter_.swapchain().format(),
+      .depth_format = depth_format_,
       .backend = render_path_ == RenderPath::Vulkan13DynamicRendering
                      ? PipelineRenderBackend::DynamicRendering
                      : PipelineRenderBackend::RenderPass,
@@ -232,6 +233,7 @@ util::Status VulkanContext::init() {
 
 VulkanContext::~VulkanContext() {
   if (device_.validate()) {
+    // NOLINTNEXTLINE(misc-const-correctness)
     VkDevice device = device_.vk_device();
     vkDeviceWaitIdle(device);
   }
@@ -311,14 +313,19 @@ util::Status VulkanContext::create_device() {
     return util::unexpected(std::move(device_status.error()));
   }
 
-  queue_submit2_ = std::bit_cast<PFN_vkQueueSubmit2>(
+  // vkGetDeviceProcAddr returns a generic PFN_vkVoidFunction that must be
+  // type-punned to the concrete function pointer type; reinterpret_cast is
+  // the only standard-conforming way to do this for Vulkan's loader API.
+  // NOLINTBEGIN(cppcoreguidelines-pro-type-reinterpret-cast)
+  queue_submit2_ = reinterpret_cast<PFN_vkQueueSubmit2>(
       vkGetDeviceProcAddr(device_.vk_device(), "vkQueueSubmit2"));
-  cmd_begin_rendering_ = std::bit_cast<PFN_vkCmdBeginRendering>(
+  cmd_begin_rendering_ = reinterpret_cast<PFN_vkCmdBeginRendering>(
       vkGetDeviceProcAddr(device_.vk_device(), "vkCmdBeginRendering"));
-  cmd_end_rendering_ = std::bit_cast<PFN_vkCmdEndRendering>(
+  cmd_end_rendering_ = reinterpret_cast<PFN_vkCmdEndRendering>(
       vkGetDeviceProcAddr(device_.vk_device(), "vkCmdEndRendering"));
-  cmd_pipeline_barrier2_ = std::bit_cast<PFN_vkCmdPipelineBarrier2>(
+  cmd_pipeline_barrier2_ = reinterpret_cast<PFN_vkCmdPipelineBarrier2>(
       vkGetDeviceProcAddr(device_.vk_device(), "vkCmdPipelineBarrier2"));
+  // NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast)
 
   resolve_render_path();
 
@@ -349,7 +356,7 @@ util::Status VulkanContext::create_instance() {
   ci.instance.enable_debug_messenger = kEnableValidationLayers;
 
 #if !QUARK_HEADLESS
-  const auto *surface = platform::query<IVulkanSurfaceSource>(*window_);
+  const auto *const surface = platform::query<IVulkanSurfaceSource>(*window_);
   QUARK_ENSURE(surface != nullptr,
                QUARK_ERR(util::Errc::Unsupported,
                          "Window does not provide IVulkanSurfaceSource"));
@@ -403,10 +410,29 @@ util::Status VulkanContext::create_frame() {
 }
 
 util::Status VulkanContext::create_render_pass() {
+  constexpr array<VkFormat, 2> depth_format_candidates{
+      VK_FORMAT_D32_SFLOAT,
+      VK_FORMAT_D24_UNORM_S8_UINT,
+  };
+  for (const VkFormat candidate : depth_format_candidates) {
+    VkFormatProperties properties{};
+    vkGetPhysicalDeviceFormatProperties(device_.vk_physical_device(), candidate,
+                                        &properties);
+    if ((properties.optimalTilingFeatures &
+         VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) != 0) {
+      depth_format_ = candidate;
+      break;
+    }
+  }
+  QUARK_ENSURE(depth_format_ != VK_FORMAT_UNDEFINED,
+               QUARK_ERR(util::Errc::Unsupported,
+                         "no supported depth attachment format"));
+
   if (render_path_ == RenderPath::Vulkan13DynamicRendering) {
     QUARK_OK();
   }
 
+  // NOLINTNEXTLINE(bugprone-invalid-enum-default-initialization)
   VkAttachmentDescription color_attachment{};
   color_attachment.format = presenter_.swapchain().format();
   color_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -417,26 +443,61 @@ util::Status VulkanContext::create_render_pass() {
   color_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
   color_attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
+  // NOLINTNEXTLINE(bugprone-invalid-enum-default-initialization)
+  VkAttachmentDescription depth_attachment{};
+  depth_attachment.format = depth_format_;
+  depth_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+  depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+  depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+  depth_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+  depth_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+  depth_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+  depth_attachment.finalLayout =
+      VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+  const array<VkAttachmentDescription, 2> attachments{
+      color_attachment,
+      depth_attachment,
+  };
+
   VkAttachmentReference color_attachment_ref{};
   color_attachment_ref.attachment = 0;
   color_attachment_ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+  VkAttachmentReference depth_attachment_ref{};
+  depth_attachment_ref.attachment = 1;
+  depth_attachment_ref.layout =
+      VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
   VkSubpassDescription subpass{};
   subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
   subpass.colorAttachmentCount = 1;
   subpass.pColorAttachments = &color_attachment_ref;
+  subpass.pDepthStencilAttachment = &depth_attachment_ref;
 
   VkSubpassDependency dependency{};
   dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
   dependency.dstSubpass = 0;
-  dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-  dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-  dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+  dependency.srcStageMask = static_cast<VkPipelineStageFlags>(
+                                VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT) |
+                            static_cast<VkPipelineStageFlags>(
+                                VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT) |
+                            static_cast<VkPipelineStageFlags>(
+                                VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT);
+  dependency.dstStageMask = static_cast<VkPipelineStageFlags>(
+                                VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT) |
+                            static_cast<VkPipelineStageFlags>(
+                                VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT) |
+                            static_cast<VkPipelineStageFlags>(
+                                VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT);
+  dependency.dstAccessMask =
+      static_cast<VkAccessFlags>(VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT) |
+      static_cast<VkAccessFlags>(VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT) |
+      static_cast<VkAccessFlags>(VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT);
 
   VkRenderPassCreateInfo render_pass_info{};
   render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-  render_pass_info.attachmentCount = 1;
-  render_pass_info.pAttachments = &color_attachment;
+  render_pass_info.attachmentCount = static_cast<uint32_t>(attachments.size());
+  render_pass_info.pAttachments = attachments.data();
   render_pass_info.subpassCount = 1;
   render_pass_info.pSubpasses = &subpass;
   render_pass_info.dependencyCount = 1;
@@ -444,6 +505,52 @@ util::Status VulkanContext::create_render_pass() {
 
   QUARK_VK_TRY(vkCreateRenderPass(device_.vk_device(), &render_pass_info,
                                   nullptr, &render_pass_));
+  QUARK_OK();
+}
+
+util::Status VulkanContext::create_depth_resources() {
+  destroy_depth_resources();
+  const VkExtent2D extent = presenter_.swapchain().extent();
+  const size_t image_count = presenter_.swapchain().images().size();
+  depth_resources_.resize(image_count);
+  depth_images_initialized_.assign(image_count, false);
+
+  for (DepthResource &resource : depth_resources_) {
+    // NOLINTNEXTLINE(bugprone-invalid-enum-default-initialization)
+    VkImageCreateInfo image_info{};
+    image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    image_info.imageType = VK_IMAGE_TYPE_2D;
+    image_info.format = depth_format_;
+    image_info.extent = {
+        .width = extent.width,
+        .height = extent.height,
+        .depth = 1,
+    };
+    image_info.mipLevels = 1;
+    image_info.arrayLayers = 1;
+    image_info.samples = VK_SAMPLE_COUNT_1_BIT;
+    image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+    image_info.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+    image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+    VmaAllocationCreateInfo allocation_info{};
+    allocation_info.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+    QUARK_VK_TRY(vmaCreateImage(device_.vma_allocator(), &image_info,
+                                &allocation_info, &resource.image,
+                                &resource.allocation, nullptr));
+
+    VkImageViewCreateInfo view_info{};
+    view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    view_info.image = resource.image;
+    view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    view_info.format = depth_format_;
+    view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+    view_info.subresourceRange.levelCount = 1;
+    view_info.subresourceRange.layerCount = 1;
+    QUARK_VK_TRY(vkCreateImageView(device_.vk_device(), &view_info, nullptr,
+                                   &resource.view));
+  }
   QUARK_OK();
 }
 
@@ -456,13 +563,17 @@ util::Status VulkanContext::create_framebuffers() {
   const auto &image_views = presenter_.swapchain().image_views();
   framebuffers_.resize(image_views.size());
 
-  for (auto index{0U}; index < image_views.size(); ++index) {
-    const array<VkImageView, 1> attachments = {image_views[index]};
+  for (auto index{0UZ}; index < image_views.size(); ++index) {
+    const array<VkImageView, 2> attachments{
+        image_views[index],
+        depth_resources_[index].view,
+    };
 
     VkFramebufferCreateInfo framebuffer_info{};
     framebuffer_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
     framebuffer_info.renderPass = render_pass_;
-    framebuffer_info.attachmentCount = 1;
+    framebuffer_info.attachmentCount =
+        static_cast<uint32_t>(attachments.size());
     framebuffer_info.pAttachments = attachments.data();
     framebuffer_info.width = presenter_.swapchain().extent().width;
     framebuffer_info.height = presenter_.swapchain().extent().height;
@@ -476,6 +587,7 @@ util::Status VulkanContext::create_framebuffers() {
 }
 
 util::Status VulkanContext::record_command_buffer(uint32_t image_index) {
+  // NOLINTNEXTLINE(misc-const-correctness)
   VkCommandBuffer cb = frame_.cmd()->cmd(image_index);
 
   QUARK_VK_TRY(vkResetCommandBuffer(cb, /*flags=*/0));
@@ -485,11 +597,12 @@ util::Status VulkanContext::record_command_buffer(uint32_t image_index) {
 
   QUARK_VK_TRY(vkBeginCommandBuffer(cb, &begin_info));
 
-  VkClearValue clear_color{};
-  clear_color.color = {{0.08F, 0.08F, 0.1F, 1.0F}};
+  array<VkClearValue, 2> clear_values{};
+  clear_values[0].color = {{0.08F, 0.08F, 0.1F, 1.0F}};
+  clear_values[1].depthStencil = {.depth = 1.0F, .stencil = 0};
 
   if (render_path_ == RenderPath::Vulkan13DynamicRendering) {
-    auto *image = presenter_.swapchain().images()[image_index];
+    auto *const image = presenter_.swapchain().images()[image_index];
     const VkImageLayout old_layout = swapchain_images_initialized_[image_index]
                                          ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
                                          : VK_IMAGE_LAYOUT_UNDEFINED;
@@ -522,7 +635,48 @@ util::Status VulkanContext::record_command_buffer(uint32_t image_index) {
     color_attachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    color_attachment.clearValue = clear_color;
+    color_attachment.clearValue = clear_values[0];
+
+    VkImageMemoryBarrier2 depth_barrier{};
+    depth_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+    depth_barrier.srcStageMask =
+        depth_images_initialized_[image_index]
+            ? (VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT |
+               VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT)
+            : VK_PIPELINE_STAGE_2_NONE;
+    depth_barrier.srcAccessMask =
+        depth_images_initialized_[image_index]
+            ? VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
+            : VK_ACCESS_2_NONE;
+    depth_barrier.dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT |
+                                 VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+    depth_barrier.dstAccessMask =
+        VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
+        VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    depth_barrier.oldLayout =
+        depth_images_initialized_[image_index]
+            ? VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+            : VK_IMAGE_LAYOUT_UNDEFINED;
+    depth_barrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    depth_barrier.image = depth_resources_[image_index].image;
+    depth_barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+    depth_barrier.subresourceRange.levelCount = 1;
+    depth_barrier.subresourceRange.layerCount = 1;
+
+    VkDependencyInfo depth_dependency{};
+    depth_dependency.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+    depth_dependency.imageMemoryBarrierCount = 1;
+    depth_dependency.pImageMemoryBarriers = &depth_barrier;
+    cmd_pipeline_barrier2_(cb, &depth_dependency);
+
+    VkRenderingAttachmentInfo depth_attachment{};
+    depth_attachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    depth_attachment.imageView = depth_resources_[image_index].view;
+    depth_attachment.imageLayout =
+        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depth_attachment.clearValue = clear_values[1];
 
     VkRenderingInfo rendering_info{};
     rendering_info.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
@@ -531,12 +685,15 @@ util::Status VulkanContext::record_command_buffer(uint32_t image_index) {
     rendering_info.layerCount = 1;
     rendering_info.colorAttachmentCount = 1;
     rendering_info.pColorAttachments = &color_attachment;
+    rendering_info.pDepthAttachment = &depth_attachment;
 
     cmd_begin_rendering_(cb, &rendering_info);
 
-    renderer_.draw(cb, presenter_.swapchain().extent());
+    renderer_.draw(cb, presenter_.swapchain().extent(),
+                   std::chrono::steady_clock::now() - start_time_);
 
     cmd_end_rendering_(cb);
+    depth_images_initialized_[image_index] = true;
 
     VkImageMemoryBarrier2 to_present{};
     to_present.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
@@ -561,11 +718,13 @@ util::Status VulkanContext::record_command_buffer(uint32_t image_index) {
     render_pass_info.framebuffer = framebuffers_[image_index];
     render_pass_info.renderArea.offset = {.x = 0, .y = 0};
     render_pass_info.renderArea.extent = presenter_.swapchain().extent();
-    render_pass_info.clearValueCount = 1;
-    render_pass_info.pClearValues = &clear_color;
+    render_pass_info.clearValueCount =
+        static_cast<uint32_t>(clear_values.size());
+    render_pass_info.pClearValues = clear_values.data();
 
     vkCmdBeginRenderPass(cb, &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
-    renderer_.draw(cb, presenter_.swapchain().extent());
+    renderer_.draw(cb, presenter_.swapchain().extent(),
+                   std::chrono::steady_clock::now() - start_time_);
     vkCmdEndRenderPass(cb);
   }
 
@@ -604,8 +763,10 @@ util::Status VulkanContext::submit_frame(VkCommandBuffer command_buffer,
     cb_info.commandBuffer = command_buffer;
     cb_info.deviceMask = 0;
 
-    const array<VkSemaphoreSubmitInfo, 2> signals = {signal_sem_bin,
-                                                     signal_sem_tl};
+    const array<VkSemaphoreSubmitInfo, 2> signals = {
+        signal_sem_bin,
+        signal_sem_tl,
+    };
 
     VkSubmitInfo2 submit_info{};
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
@@ -624,8 +785,10 @@ util::Status VulkanContext::submit_frame(VkCommandBuffer command_buffer,
 
   constexpr VkPipelineStageFlags wait_stage =
       VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-  const array<VkSemaphore, 2> signal_semaphores = {render_finished,
-                                                   gpu_timeline_.semaphore()};
+  const array<VkSemaphore, 2> signal_semaphores = {
+      render_finished,
+      gpu_timeline_.semaphore(),
+  };
   const array<uint64_t, 2> signal_values = {0, signal_value};
 
   VkTimelineSemaphoreSubmitInfo timeline_info{};
@@ -663,7 +826,7 @@ util::Status VulkanContext::draw_frame() {
   QUARK_TRY_ASSIGN(drained, retirement_queue_.drain());
   (void)drained;
 
-  auto view = frame_.view();
+  const auto view = frame_.view();
 
   // Wait until this frame slot is free
   const uint64_t frame_value = view.sync->in_flight_value(current_frame_);
@@ -692,6 +855,7 @@ util::Status VulkanContext::draw_frame() {
 
   const uint64_t signal_value = gpu_timeline_.next_signal_value();
 
+  // NOLINTNEXTLINE(misc-const-correctness)
   VkCommandBuffer cb = view.cmd->cmd(image_index);
   QUARK_TRY_STATUS(submit_frame(cb, view.sync->image_available(current_frame_),
                                 view.sync->render_finished(current_frame_),
@@ -703,7 +867,8 @@ util::Status VulkanContext::draw_frame() {
 
   const array<VkSwapchainKHR, 1> swapchains = {presenter_.swapchain().handle()};
   const array<VkSemaphore, 1> present_wait = {
-      view.sync->render_finished(current_frame_)};
+      view.sync->render_finished(current_frame_),
+  };
 
   VkPresentInfoKHR present_info{};
   present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -728,6 +893,8 @@ util::Status VulkanContext::draw_frame() {
 }
 
 void VulkanContext::cleanup_swapchain() {
+  renderer_.destroy();
+  // NOLINTNEXTLINE(misc-const-correctness)
   for (VkFramebuffer framebuffer : framebuffers_) {
     if (framebuffer != VK_NULL_HANDLE) {
       vkDestroyFramebuffer(device_.vk_device(), framebuffer, nullptr);
@@ -740,6 +907,7 @@ void VulkanContext::cleanup_swapchain() {
     render_pass_ = VK_NULL_HANDLE;
   }
 
+  destroy_depth_resources();
   presenter_.destroy_swapchain();
   swapchain_images_initialized_.clear();
 }
@@ -762,7 +930,20 @@ util::Status VulkanContext::recreate_swapchain() {
                                        false);
 
   QUARK_TRY_STATUS(create_render_pass());
+  QUARK_TRY_STATUS(create_depth_resources());
   QUARK_TRY_STATUS(create_framebuffers());
+  QUARK_TRY_STATUS(renderer_.create({
+      .device = device_.view(),
+      .allocator = &device_.allocator(),
+      .retire_queue = &retirement_queue_,
+      .extent = presenter_.swapchain().extent(),
+      .color_format = presenter_.swapchain().format(),
+      .depth_format = depth_format_,
+      .backend = render_path_ == RenderPath::Vulkan13DynamicRendering
+                     ? PipelineRenderBackend::DynamicRendering
+                     : PipelineRenderBackend::RenderPass,
+      .render_pass = render_pass_,
+  }));
 
   QUARK_TRY_STATUS(frame_.cmd()->resize(
       static_cast<uint32_t>(presenter_.swapchain().images().size())));
@@ -773,6 +954,27 @@ util::Status VulkanContext::recreate_swapchain() {
 }
 
 #endif
+
+void VulkanContext::destroy_depth_resources() noexcept {
+  if (device_.vk_device() == VK_NULL_HANDLE) {
+    depth_resources_.clear();
+    depth_images_initialized_.clear();
+    return;
+  }
+
+  for (DepthResource &resource : depth_resources_) {
+    if (resource.view != VK_NULL_HANDLE) {
+      vkDestroyImageView(device_.vk_device(), resource.view, nullptr);
+    }
+    if (resource.image != VK_NULL_HANDLE) {
+      vmaDestroyImage(device_.vma_allocator(), resource.image,
+                      resource.allocation);
+    }
+    resource = {};
+  }
+  depth_resources_.clear();
+  depth_images_initialized_.clear();
+}
 
 void VulkanContext::resolve_render_path() {
   const auto caps = device_.capabilities();
