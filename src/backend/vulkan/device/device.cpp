@@ -7,11 +7,32 @@
 #include <quark/vk/device/details/device_feature_chain_builder.hpp>
 #include <quark/vk/diagnostic_prelude.hpp>
 #include <set>
+#include <string_view>
 #include <vector>
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_core.h>
 
 namespace quark::vk::details {
+
+namespace {
+
+constexpr std::string_view device_type_name(VkPhysicalDeviceType type) {
+  switch (type) {
+  case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU:
+    return "discrete GPU";
+  case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU:
+    return "integrated GPU";
+  case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU:
+    return "virtual GPU";
+  case VK_PHYSICAL_DEVICE_TYPE_CPU:
+    return "CPU";
+  case VK_PHYSICAL_DEVICE_TYPE_OTHER:
+  default:
+    return "other";
+  }
+}
+
+} // namespace
 
 util::Status Device::create(const Device::CreateInfo &ci) {
   destroy();
@@ -146,12 +167,22 @@ util::Result<Device::DeviceSelection> Device::pick_physical_device_(
   QUARK_VK_TRY(
       vkEnumeratePhysicalDevices(instance, &device_count, devices.data()));
 
+  QUARK_LOG_INFO_MOD("device.select", "enumerated {} Vulkan physical device(s)",
+                     device_count);
+
   std::optional<DeviceSelection> fallback;
 
   for (const VkPhysicalDevice &physical_device : devices) {
+    VkPhysicalDeviceProperties properties{};
+    vkGetPhysicalDeviceProperties(physical_device, &properties);
+
     const auto graphics_queue_family_index =
         find_graphics_queue_family_or_error_(physical_device);
     if (!graphics_queue_family_index.has_value()) {
+      QUARK_LOG_INFO_MOD(
+          "device.select",
+          "rejected '{}' ({}): no suitable graphics queue family",
+          properties.deviceName, device_type_name(properties.deviceType));
       continue;
     }
 
@@ -163,6 +194,11 @@ util::Result<Device::DeviceSelection> Device::pick_physical_device_(
           find_present_queue_family_or_error_(physical_device, surface);
 
       if (!present_result.has_value()) {
+        QUARK_LOG_INFO_MOD("device.select",
+                           "rejected '{}' ({}): no queue family can present "
+                           "to the surface",
+                           properties.deviceName,
+                           device_type_name(properties.deviceType));
         continue;
       }
 
@@ -176,6 +212,11 @@ util::Result<Device::DeviceSelection> Device::pick_physical_device_(
     bool ok_exts = true;
     for (const char *name : required_extensions) {
       if (!has_device_extension_props_(props, name)) {
+        QUARK_LOG_INFO_MOD(
+            "device.select",
+            "rejected '{}' ({}): missing required extension '{}'",
+            properties.deviceName, device_type_name(properties.deviceType),
+            name);
         ok_exts = false;
         break;
       }
@@ -185,9 +226,6 @@ util::Result<Device::DeviceSelection> Device::pick_physical_device_(
       continue;
     }
 
-    VkPhysicalDeviceProperties properties{};
-    vkGetPhysicalDeviceProperties(physical_device, &properties);
-
     const DeviceSelection selection{
         .physical_device = physical_device,
         .graphics_queue_family_index = *graphics_queue_family_index,
@@ -196,10 +234,18 @@ util::Result<Device::DeviceSelection> Device::pick_physical_device_(
     };
 
     if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
+      QUARK_LOG_INFO_MOD(
+          "device.select", "selected '{}' ({}): discrete GPU takes priority",
+          properties.deviceName, device_type_name(properties.deviceType));
       return selection;
     }
 
     if (!fallback.has_value()) {
+      QUARK_LOG_INFO_MOD("device.select",
+                         "accepted '{}' ({}): suitable, keeping as fallback "
+                         "in case a discrete GPU is found",
+                         properties.deviceName,
+                         device_type_name(properties.deviceType));
       fallback = selection;
     }
   }

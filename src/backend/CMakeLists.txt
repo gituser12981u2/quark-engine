@@ -5,3 +5,4 @@ add_subdirectory(vulkan)
 add_subdirectory(shaders)
 
 target_link_libraries(quark_backend INTERFACE quark::backend::vulkan)
+add_dependencies(quark_backend_vulkan scene_shaders)

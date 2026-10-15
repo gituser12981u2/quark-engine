@@ -1,6 +1,7 @@
 add_library(quark_backend_vulkan STATIC vulkan_context.cpp
                                       triangle_vertex_buffer.cpp
-                                      triangle_renderer.cpp)
+                                      triangle_renderer.cpp mesh.cpp
+                                      scene_renderer.cpp)
 add_library(quark::backend::vulkan ALIAS quark_backend_vulkan)
 
 add_subdirectory(instance)

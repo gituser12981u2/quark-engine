@@ -19,10 +19,12 @@ namespace quark::vk::details {
 
 namespace {
 
-// TODO: replace with inplace_vector and upgrade to c++26
+// TODO: replace with inplace_vector and upgrade to c++26 (LOL NOT HAPPENING ON
+// MSVC)
 struct PipelineScratch {
   std::array<VkPipelineShaderStageCreateInfo,
              pipeline_limits::kMaxGraphicsShaderStages>
+      // NOLINTNEXTLINE(bugprone-invalid-enum-default-initialization)
       stages{};
 
   std::array<VkShaderModule, pipeline_limits::kMaxGraphicsShaderStages>
@@ -58,32 +60,34 @@ VkVertexInputBindingDescription to_vk_binding(const VertexBindingDesc &desc) {
 
 VkVertexInputAttributeDescription
 to_vk_attribute(const VertexAttributeDesc &desc) {
-  VkVertexInputAttributeDescription out{};
-  out.location = desc.location;
-  out.binding = desc.binding;
-  out.format = desc.format;
-  out.offset = desc.offset;
-  return out;
+  return {
+      .location = desc.location,
+      .binding = desc.binding,
+      .format = desc.format,
+      .offset = desc.offset,
+  };
 }
 
 VkPipelineColorBlendAttachmentState
 make_blend_attachment(const ColorAttachmentDesc &desc) {
-  VkPipelineColorBlendAttachmentState out{};
-  out.blendEnable = desc.blend_enable ? VK_TRUE : VK_FALSE;
-  out.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-  out.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
-  out.colorBlendOp = VK_BLEND_OP_ADD;
-  out.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-  out.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-  out.alphaBlendOp = VK_BLEND_OP_ADD;
-  out.colorWriteMask = desc.write_mask;
-  return out;
+  return {
+      .blendEnable = desc.blend_enable ? VK_TRUE : VK_FALSE,
+      .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
+      .dstColorBlendFactor = VK_BLEND_FACTOR_ZERO,
+      .colorBlendOp = VK_BLEND_OP_ADD,
+      .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+      .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+      .alphaBlendOp = VK_BLEND_OP_ADD,
+      .colorWriteMask = desc.write_mask,
+  };
 }
 
 util::Status validate_desc(const GraphicsPipeline::CreateInfo &ci) {
   QUARK_ENSURE(
       ci.device.device != VK_NULL_HANDLE,
       QUARK_ERR(util::Errc::InvalidArg, "graphics pipeline device is null"));
+  QUARK_ENSURE(ci.desc != nullptr, QUARK_ERR(util::Errc::InvalidArg,
+                                             "graphics pipeline desc is null"));
 
   const GraphicsPipelineDesc &desc = *ci.desc;
 
@@ -117,6 +121,24 @@ util::Status validate_desc(const GraphicsPipeline::CreateInfo &ci) {
   QUARK_ENSURE(desc.dynamic_states.size() <= pipeline_limits::kMaxDynamicStates,
                QUARK_ERR(util::Errc::InvalidArg,
                          "graphics pipeline has too many dynamic states"));
+  VkPhysicalDeviceProperties physical_device_properties{};
+  vkGetPhysicalDeviceProperties(ci.device.physical_device,
+                                &physical_device_properties);
+  for (const VkPushConstantRange &range : desc.push_constant_ranges) {
+    // NOLINTNEXTLINE
+    QUARK_ENSURE(
+        // TODO! I want to refactor this, I need to read on up on this. It's
+        // been so long, fuck.-Alex.
+        range.stageFlags != 0 && range.size != 0 && range.offset % 4 == 0 &&
+            range.size % 4 == 0 &&
+            range.offset <=
+                physical_device_properties.limits.maxPushConstantsSize &&
+            range.size <=
+                physical_device_properties.limits.maxPushConstantsSize -
+                    range.offset,
+        QUARK_ERR(util::Errc::InvalidArg,
+                  "graphics pipeline has invalid push constant range"));
+  }
 
   if (desc.backend == PipelineRenderBackend::RenderPass) {
     QUARK_ENSURE(
@@ -152,6 +174,7 @@ util::Status build_scratch(VkDevice device, const GraphicsPipelineDesc &desc,
 
     scratch.shader_modules[scratch.stage_count] = module;
 
+    // NOLINTNEXTLINE(bugprone-invalid-enum-default-initialization)
     VkPipelineShaderStageCreateInfo stage{};
     stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     stage.stage = stage_desc.stage;
@@ -196,7 +219,7 @@ void destroy_scratch_shader_modules(VkDevice device,
 }
 
 } // namespace
-
+// NOLINTNEXTLINE(readability-function-size)
 util::Status GraphicsPipeline::create(const CreateInfo &ci) {
   QUARK_TRY_STATUS(validate_desc(ci));
 
@@ -223,26 +246,33 @@ util::Status GraphicsPipeline::create(const CreateInfo &ci) {
   vertex_input.vertexAttributeDescriptionCount = scratch.attribute_count;
   vertex_input.pVertexAttributeDescriptions = scratch.attributes.data();
 
-  VkPipelineInputAssemblyStateCreateInfo input_assembly{};
-  input_assembly.sType =
-      VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+  VkPipelineInputAssemblyStateCreateInfo input_assembly{
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+      .pNext = nullptr,
+      .flags = 0,
+      .topology = desc.topology,
+      .primitiveRestartEnable =
+          desc.primitive_restart_enable ? VK_TRUE : VK_FALSE,
+  };
+
+  input_assembly.pNext = nullptr;
   input_assembly.topology = desc.topology;
   input_assembly.primitiveRestartEnable =
       desc.primitive_restart_enable ? VK_TRUE : VK_FALSE;
 
-  VkViewport viewport{};
-  viewport.x = 0.0F;
-  viewport.y = 0.0F;
-  viewport.width = static_cast<float>(ci.extent.width);
-  viewport.height = static_cast<float>(ci.extent.height);
-  viewport.minDepth = 0.0F;
-  viewport.maxDepth = 1.0F;
+  VkViewport viewport{
+      .x = 0.0F,
+      .y = 0.0F,
+      .width = static_cast<float>(ci.extent.width),
+      .height = static_cast<float>(ci.extent.height),
+      .minDepth = 0.0F,
+      .maxDepth = 1.0F,
+  };
 
-  VkRect2D scissor{};
-  scissor = {};
-  scissor.offset = {.x = 0, .y = 0};
-  scissor.extent = ci.extent;
-
+  VkRect2D scissor{
+      .offset = {.x = 0, .y = 0},
+      .extent = ci.extent,
+  };
   VkPipelineViewportStateCreateInfo viewport_state{};
   viewport_state.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
   viewport_state.viewportCount = 1;
@@ -262,11 +292,23 @@ util::Status GraphicsPipeline::create(const CreateInfo &ci) {
   rasterizer.depthBiasEnable = VK_FALSE;
   rasterizer.lineWidth = desc.raster.line_width;
 
+  // NOLINTNEXTLINE(bugprone-invalid-enum-default-initialization)
   VkPipelineMultisampleStateCreateInfo multisample{};
   multisample.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
   multisample.rasterizationSamples = desc.multisample.samples;
 
-  // TODO: add depth stencil
+  VkPipelineDepthStencilStateCreateInfo depth_stencil{};
+  depth_stencil.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+  depth_stencil.depthTestEnable =
+      desc.depth_attachment.test_enable ? VK_TRUE : VK_FALSE;
+  depth_stencil.depthWriteEnable =
+      desc.depth_attachment.write_enable ? VK_TRUE : VK_FALSE;
+  depth_stencil.depthCompareOp = desc.depth_attachment.compare_op;
+  depth_stencil.depthBoundsTestEnable = VK_FALSE;
+  depth_stencil.stencilTestEnable = VK_FALSE;
+  depth_stencil.minDepthBounds = 0.0F;
+  depth_stencil.maxDepthBounds = 1.0F;
 
   VkPipelineColorBlendStateCreateInfo color_blend{};
   color_blend.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
@@ -280,12 +322,16 @@ util::Status GraphicsPipeline::create(const CreateInfo &ci) {
       static_cast<uint32_t>(desc.dynamic_states.size());
   dynamic_state.pDynamicStates = desc.dynamic_states.data();
 
+  std::vector<VkPushConstantRange> push_constant_ranges(
+      desc.push_constant_ranges.begin(), desc.push_constant_ranges.end());
+
   QUARK_TRY_STATUS(layout_.create({
       .device = ci.device,
       .set_layout_count = 0,
       .set_layouts = nullptr,
-      .push_constant_range_count = 0,
-      .push_constant_ranges = nullptr,
+      .push_constant_range_count =
+          static_cast<uint32_t>(push_constant_ranges.size()),
+      .push_constant_ranges = push_constant_ranges.data(),
       .allocator = ci.allocator,
   }));
 
@@ -312,9 +358,9 @@ util::Status GraphicsPipeline::create(const CreateInfo &ci) {
   pipeline_info.pViewportState = &viewport_state;
   pipeline_info.pRasterizationState = &rasterizer;
   pipeline_info.pMultisampleState = &multisample;
-  pipeline_info.pDepthStencilState = nullptr;
-  // desc.depth_attachment.format == VK_FORMAT_UNDEFINED ? nullptr
-  //                                                     : &depth_stencil;
+  pipeline_info.pDepthStencilState =
+      desc.depth_attachment.format == VK_FORMAT_UNDEFINED ? nullptr
+                                                          : &depth_stencil;
   pipeline_info.pColorBlendState = &color_blend;
   pipeline_info.pDynamicState =
       desc.dynamic_states.empty() ? nullptr : &dynamic_state;
